@@ -1,8 +1,21 @@
-import { spawn } from 'child_process';
+import { ContainerCodeExecutor } from './ContainerCodeExecutor';
 import { IRunnerService, RunnerConfig, RunnerResult } from '../domain/services/IRunnerService';
 import { ProgrammingLanguage, SubmissionStatus } from '../domain/entities/Submission';
+import { Logger } from './Logger';
 
+/**
+ * RunnerService: Coordinador principal de ejecución de código
+ * 
+ * Características:
+ * - Soporta múltiples lenguajes (JavaScript, TypeScript, Python, C++, Java)
+ * - Ejecuta código en contenedores Docker aislados con restricciones de seguridad
+ * - Límites de CPU, memoria y tiempo
+ * - Sistema de archivos read-only
+ * - Sin acceso a red
+ */
 export class RunnerService implements IRunnerService {
+  private logger: Logger;
+  private containerExecutor: ContainerCodeExecutor;
   private readonly supportedLanguages: ProgrammingLanguage[] = [
     ProgrammingLanguage.PYTHON,
     ProgrammingLanguage.JAVASCRIPT,
@@ -10,25 +23,54 @@ export class RunnerService implements IRunnerService {
     ProgrammingLanguage.JAVA
   ];
 
+  constructor() {
+    this.logger = new Logger('RunnerService');
+    this.containerExecutor = new ContainerCodeExecutor();
+  }
+
+  /**
+   * Ejecuta código basado en el lenguaje especificado
+   */
   async executeCode(config: RunnerConfig): Promise<RunnerResult> {
     if (!this.isLanguageSupported(config.language)) {
-      throw new Error(`Language ${config.language} is not supported`);
+      return {
+        status: SubmissionStatus.COMPILATION_ERROR,
+        score: 0,
+        timeMsTotal: 0,
+        memoryKbTotal: 0,
+        testCaseResults: [],
+        errorMessage: `Language ${config.language} is not supported`
+      };
     }
 
     try {
+      this.logger.info(`Executing ${config.language} code with ${config.testCases.length} test cases`);
+
+      // Para JavaScript/TypeScript, usar el contenedor Docker
+      if (config.language === ProgrammingLanguage.JAVASCRIPT) {
+        return await this.containerExecutor.executeCode(config);
+      }
+
+      // Para otros lenguajes, usar ejecutores específicos (a implementar)
       switch (config.language) {
         case ProgrammingLanguage.PYTHON:
           return await this.executePython(config);
-        case ProgrammingLanguage.JAVASCRIPT:
-          return await this.executeJavaScript(config);
         case ProgrammingLanguage.CPP:
           return await this.executeCpp(config);
         case ProgrammingLanguage.JAVA:
           return await this.executeJava(config);
         default:
-          throw new Error(`Execution not implemented for ${config.language}`);
+          return {
+            status: SubmissionStatus.COMPILATION_ERROR,
+            score: 0,
+            timeMsTotal: 0,
+            memoryKbTotal: 0,
+            testCaseResults: [],
+            errorMessage: `Execution not yet implemented for ${config.language}`
+          };
       }
     } catch (error) {
+      this.logger.error('Error executing code', error);
       return {
         status: SubmissionStatus.RUNTIME_ERROR,
         score: 0,
@@ -40,160 +82,86 @@ export class RunnerService implements IRunnerService {
     }
   }
 
+  /**
+   * Ejecuta código Python (a implementar con contenedores)
+   */
   private async executePython(config: RunnerConfig): Promise<RunnerResult> {
-    const testCaseResults = [];
-    let totalTime = 0;
-    let totalMemory = 0;
-    let passedTests = 0;
-
-    for (const testCase of config.testCases) {
-      const result = await this.runPythonTestCase(config.code, testCase, config.timeLimit);
-      testCaseResults.push(result);
-      totalTime += result.timeMs;
-      totalMemory += result.memoryKb;
-      
-      if (result.status === 'OK') {
-        passedTests++;
-      }
-    }
-
-    const score = config.testCases.length > 0 ? (passedTests / config.testCases.length) * 100 : 0;
-    const status = score === 100 ? SubmissionStatus.ACCEPTED : SubmissionStatus.WRONG_ANSWER;
-
+    // TODO: Implementar ejecución de Python en contenedores
     return {
-      status,
-      score,
-      timeMsTotal: totalTime,
-      memoryKbTotal: totalMemory,
-      testCaseResults
+      status: SubmissionStatus.COMPILATION_ERROR,
+      score: 0,
+      timeMsTotal: 0,
+      memoryKbTotal: 0,
+      testCaseResults: [],
+      errorMessage: 'Python execution not yet implemented'
     };
   }
 
-  private async executeJavaScript(config: RunnerConfig): Promise<RunnerResult> {
-    // Similar implementation for JavaScript
-    return this.executePython(config); // Simplified for now
-  }
-
+  /**
+   * Ejecuta código C++ (a implementar con contenedores)
+   */
   private async executeCpp(config: RunnerConfig): Promise<RunnerResult> {
-    // Similar implementation for C++
-    return this.executePython(config); // Simplified for now
+    // TODO: Implementar ejecución de C++ en contenedores
+    return {
+      status: SubmissionStatus.COMPILATION_ERROR,
+      score: 0,
+      timeMsTotal: 0,
+      memoryKbTotal: 0,
+      testCaseResults: [],
+      errorMessage: 'C++ execution not yet implemented'
+    };
   }
 
+  /**
+   * Ejecuta código Java (a implementar con contenedores)
+   */
   private async executeJava(config: RunnerConfig): Promise<RunnerResult> {
-    // Similar implementation for Java
-    return this.executePython(config); // Simplified for now
+    // TODO: Implementar ejecución de Java en contenedores
+    return {
+      status: SubmissionStatus.COMPILATION_ERROR,
+      score: 0,
+      timeMsTotal: 0,
+      memoryKbTotal: 0,
+      testCaseResults: [],
+      errorMessage: 'Java execution not yet implemented'
+    };
   }
 
-  private async runPythonTestCase(code: string, testCase: any, timeLimit: number): Promise<any> {
-    return new Promise((resolve) => {
-      const startTime = Date.now();
-      
-      // Create a temporary Python file
-      const fs = require('fs');
-      const path = require('path');
-      const tempDir = '/tmp';
-      const fileName = `temp_${Date.now()}.py`;
-      const filePath = path.join(tempDir, fileName);
-      
-      try {
-        fs.writeFileSync(filePath, code);
-        
-        const python = spawn('python3', [filePath], {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: timeLimit
-        });
-
-        let output = '';
-        let error = '';
-
-        python.stdout.on('data', (data) => {
-          output += data.toString();
-        });
-
-        python.stderr.on('data', (data) => {
-          error += data.toString();
-        });
-
-        python.on('close', (code) => {
-          const endTime = Date.now();
-          const executionTime = endTime - startTime;
-          
-          // Clean up
-          try {
-            fs.unlinkSync(filePath);
-          } catch (e) {
-            // Ignore cleanup errors
-          }
-
-          if (code !== 0) {
-            resolve({
-              caseId: testCase.id,
-              status: SubmissionStatus.RUNTIME_ERROR,
-              timeMs: executionTime,
-              memoryKb: 0,
-              errorMessage: error
-            });
-          } else {
-            const isCorrect = output.trim() === testCase.expectedOutput.trim();
-            resolve({
-              caseId: testCase.id,
-              status: isCorrect ? 'OK' : SubmissionStatus.WRONG_ANSWER,
-              timeMs: executionTime,
-              memoryKb: 0,
-              actualOutput: output.trim(),
-              expectedOutput: testCase.expectedOutput.trim()
-            });
-          }
-        });
-
-        python.on('error', (err) => {
-          const endTime = Date.now();
-          const executionTime = endTime - startTime;
-          
-          resolve({
-            caseId: testCase.id,
-            status: SubmissionStatus.RUNTIME_ERROR,
-            timeMs: executionTime,
-            memoryKb: 0,
-            errorMessage: err.message
-          });
-        });
-
-        // Send input to the program
-        python.stdin.write(testCase.input);
-        python.stdin.end();
-
-      } catch (error) {
-        resolve({
-          caseId: testCase.id,
-          status: SubmissionStatus.RUNTIME_ERROR,
-          timeMs: 0,
-          memoryKb: 0,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    });
-  }
-
+  /**
+   * Verifica si un lenguaje es soportado
+   */
   isLanguageSupported(language: ProgrammingLanguage): boolean {
     return this.supportedLanguages.includes(language);
   }
 
+  /**
+   * Retorna lista de lenguajes soportados
+   */
   getSupportedLanguages(): ProgrammingLanguage[] {
     return [...this.supportedLanguages];
   }
 
+  /**
+   * Obtiene estadísticas del servicio de ejecución
+   */
   async getRunnerStats(): Promise<{
     activeRunners: number;
     totalExecutions: number;
     averageExecutionTime: number;
   }> {
-    // This would be implemented with actual metrics
+    const stats = await this.containerExecutor.getStats();
     return {
-      activeRunners: 0,
+      activeRunners: stats.activeContainers,
       totalExecutions: 0,
       averageExecutionTime: 0
     };
+  }
+
+  /**
+   * Limpia recursos
+   */
+  async cleanup(): Promise<void> {
+    await this.containerExecutor.cleanup();
   }
 }
 

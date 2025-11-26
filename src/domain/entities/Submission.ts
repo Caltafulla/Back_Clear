@@ -20,9 +20,9 @@ export interface TestCaseResult {
   status: SubmissionStatus;
   timeMs: number;
   memoryKb: number;
-  actualOutput?: string;
-  expectedOutput?: string;
-  errorMessage?: string;
+  actualOutput?: string | undefined;
+  expectedOutput?: string | undefined;
+  errorMessage?: string | undefined;
 }
 
 export interface Submission {
@@ -37,7 +37,7 @@ export interface Submission {
   timeMsTotal: number;
   memoryKbTotal: number;
   testCaseResults: TestCaseResult[];
-  errorMessage?: string;
+  errorMessage?: string | undefined;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -60,6 +60,6 @@ export interface SubmissionResult {
   timeMsTotal: number;
   memoryKbTotal: number;
   testCaseResults: TestCaseResult[];
-  errorMessage?: string;
+  errorMessage?: string | undefined;
 }
 

@@ -1,0 +1,26 @@
+# Dockerfile para ejecutar código TypeScript/JavaScript en un contenedor aislado
+# Este Dockerfile se usa en tiempo de ejecución para ejecutar código de estudiantes
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Instalar utilidades necesarias para monitoreo (pssutil equivalente)
+RUN apk add --no-cache \
+    bash \
+    curl \
+    dumb-init
+
+# Crear usuario sin privilegios para ejecutar el código
+RUN addgroup -g 1001 -S executor && adduser -S executor -u 1001
+
+# Copiar script de entrada
+COPY --chown=executor:executor scripts/executor-entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Cambiar a usuario sin privilegios
+USER executor
+
+# Usar dumb-init para manejar señales correctamente
+ENTRYPOINT ["/sbin/dumb-init", "--"]
+CMD ["/app/entrypoint.sh"]

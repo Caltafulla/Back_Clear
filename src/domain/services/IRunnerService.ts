@@ -23,11 +23,11 @@ export interface RunnerResult {
     status: string;
     timeMs: number;
     memoryKb: number;
-    actualOutput?: string;
-    expectedOutput?: string;
-    errorMessage?: string;
+    actualOutput?: string | undefined;
+    expectedOutput?: string | undefined;
+    errorMessage?: string | undefined;
   }>;
-  errorMessage?: string;
+  errorMessage?: string | undefined;
 }
 
 export interface IRunnerService {
