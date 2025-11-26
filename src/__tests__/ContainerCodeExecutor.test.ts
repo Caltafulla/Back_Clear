@@ -47,8 +47,8 @@ describe('ContainerCodeExecutor', () => {
       expect(result.status).toBe(SubmissionStatus.ACCEPTED);
       expect(result.score).toBe(100);
       expect(result.testCaseResults).toHaveLength(1);
-      expect(result.testCaseResults[0].status).toBe(SubmissionStatus.ACCEPTED);
-      expect(result.testCaseResults[0].actualOutput).toBe('10');
+      expect((result.testCaseResults as any)[0].status).toBe(SubmissionStatus.ACCEPTED);
+      expect((result.testCaseResults as any)[0].actualOutput).toBe('10');
     });
 
     it('debería detectar salida incorrecta', async () => {
@@ -76,8 +76,8 @@ describe('ContainerCodeExecutor', () => {
 
       expect(result.status).toBe(SubmissionStatus.WRONG_ANSWER);
       expect(result.score).toBe(0);
-      expect(result.testCaseResults[0].status).toBe(SubmissionStatus.WRONG_ANSWER);
-      expect(result.testCaseResults[0].actualOutput).toBe('15');
+      expect((result.testCaseResults as any)[0].status).toBe(SubmissionStatus.WRONG_ANSWER);
+      expect((result.testCaseResults as any)[0].actualOutput).toBe('15');
     });
 
     it('debería manejar errores de tiempo de ejecución', async () => {
@@ -105,8 +105,8 @@ describe('ContainerCodeExecutor', () => {
 
       expect(result.status).toBe(SubmissionStatus.RUNTIME_ERROR);
       expect(result.score).toBe(0);
-      expect(result.testCaseResults[0].status).toBe(SubmissionStatus.RUNTIME_ERROR);
-      expect(result.testCaseResults[0].errorMessage).toBeDefined();
+      expect((result.testCaseResults as any)[0].status).toBe(SubmissionStatus.RUNTIME_ERROR);
+      expect((result.testCaseResults as any)[0].errorMessage).toBeDefined();
     });
 
     it('debería ejecutar múltiples casos de prueba', async () => {
@@ -182,8 +182,8 @@ describe('ContainerCodeExecutor', () => {
 
       expect(result.score).toBe(50);
       expect(result.status).toBe(SubmissionStatus.WRONG_ANSWER);
-      expect(result.testCaseResults[0].status).toBe(SubmissionStatus.WRONG_ANSWER);
-      expect(result.testCaseResults[1].status).toBe(SubmissionStatus.ACCEPTED);
+      expect((result.testCaseResults as any)[0].status).toBe(SubmissionStatus.WRONG_ANSWER);
+      expect((result.testCaseResults as any)[1].status).toBe(SubmissionStatus.ACCEPTED);
     });
 
     it('debería capturar tiempo de ejecución', async () => {
@@ -213,7 +213,7 @@ describe('ContainerCodeExecutor', () => {
 
       const result = await executor.executeCode(config);
 
-      expect(result.testCaseResults[0].timeMs).toBeGreaterThan(0);
+      expect((result.testCaseResults as any)[0].timeMs).toBeGreaterThan(0);
       expect(result.timeMsTotal).toBeGreaterThan(0);
     });
 

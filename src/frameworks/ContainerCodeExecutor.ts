@@ -83,19 +83,25 @@ export class ContainerCodeExecutor {
         }
       }
 
-      const score =
-        config.testCases.length > 0
-          ? (passedTests / config.testCases.length) * 100
-          : 0;
+      const score = config.testCases.length > 0 ? (passedTests / config.testCases.length) * 100 : 0;
 
-      const status =
-        score === 100
-          ? SubmissionStatus.ACCEPTED
-          : passedTests > 0
-          ? SubmissionStatus.WRONG_ANSWER
-          : SubmissionStatus.RUNTIME_ERROR;
-
-      const errorMessage = passedTests === 0 ? 'No tests passed' : undefined;
+      // Determinar el estado global a partir de los resultados por caso
+      let status: string;
+      if (testCaseResults.length === 0) {
+        status = SubmissionStatus.RUNTIME_ERROR;
+      } else if (testCaseResults.every((r) => r.status === SubmissionStatus.ACCEPTED)) {
+        status = SubmissionStatus.ACCEPTED;
+      } else if (
+        testCaseResults.every((r) =>
+          [SubmissionStatus.RUNTIME_ERROR, SubmissionStatus.TIME_LIMIT_EXCEEDED].includes(r.status as any)
+        )
+      ) {
+        // Todos los casos fallaron por error de ejecución o timeout
+        status = SubmissionStatus.RUNTIME_ERROR;
+      } else {
+        // Al menos un caso fue ejecutado y no todos fueron errores de ejecución => wrong answer parcial/total
+        status = SubmissionStatus.WRONG_ANSWER;
+      }
 
       return {
         status,
@@ -103,7 +109,7 @@ export class ContainerCodeExecutor {
         timeMsTotal: totalTimeMs,
         memoryKbTotal: totalMemoryKb,
         testCaseResults,
-        errorMessage
+        errorMessage: undefined
       };
     } catch (error) {
       this.logger.error('Error executing code', error);
@@ -341,11 +347,7 @@ if (typeof main === 'function') {
         'no-new-privileges',
         '--volume',
         `${codeFile}:/code.js:ro`, // Montar código como read-only
-        '--timeout',
-        timeLimitSeconds.toString(),
         this.DOCKER_IMAGE,
-        'timeout',
-        timeLimitSeconds.toString(),
         'node',
         '/code.js'
       ];
