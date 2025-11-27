@@ -12,6 +12,7 @@ import type { Role } from './types/api'
 import LeaderboardPage from './pages/Leaderboard'
 import RegisterPage from './pages/Register'
 import MySubmissionsPage from './pages/MySubmissions'
+import ActiveEvaluationsPage from './pages/ActiveEvaluations'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminMetrics from './pages/admin/Metrics'
 import ChallengeManagement from './pages/admin/ChallengeManagement'
@@ -142,6 +143,16 @@ export default function App() {
           <RequireAuth>
             <Layout>
               <MySubmissionsPage />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/active-evaluations"
+        element={
+          <RequireAuth>
+            <Layout>
+              <ActiveEvaluationsPage />
             </Layout>
           </RequireAuth>
         }

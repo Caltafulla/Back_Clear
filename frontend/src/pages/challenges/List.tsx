@@ -98,7 +98,6 @@ export default function ChallengesList() {
           className={styles.sortSelect}
         >
           <option value="newest">Newest</option>
-          <option value="popular">Most Popular</option>
           <option value="easiest">Easiest First</option>
         </select>
       </div>

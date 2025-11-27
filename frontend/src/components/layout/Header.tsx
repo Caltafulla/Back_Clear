@@ -93,14 +93,6 @@ export default function Header({ collapsed = false, onToggle }: Props) {
             </div>
             {dropdownOpen && (
               <div className={styles.dropdown}>
-                <div className={styles.dropdownItem}>
-                  <span>👤</span>
-                  <span>Profile</span>
-                </div>
-                <div className={styles.dropdownItem}>
-                  <span>⚙️</span>
-                  <span>Settings</span>
-                </div>
                 <div className={styles.dropdownItem} onClick={logout}>
                   <span>🚪</span>
                   <span>Logout</span>
