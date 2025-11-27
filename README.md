@@ -388,3 +388,4 @@ Para soporte, contacta a [tu-email@example.com] o crea un issue en el repositori
 
 **Desarrollado con ❤️ usando Clean Architecture y las mejores prácticas de desarrollo.**
 
+##sk_ONjZaCQF1HUwJdMQ9IPeWGdyb3FY2VU9JH3dceRyQwnTtoEIm13D
