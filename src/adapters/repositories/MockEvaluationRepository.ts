@@ -56,5 +56,27 @@ export class MockEvaluationRepository implements IEvaluationRepository {
   async findByCreator(createdBy: string): Promise<Evaluation[]> {
     return this.evaluations.filter(e => e.createdBy === createdBy);
   }
+
+  async findActiveByChallengeId(challengeId: string): Promise<Evaluation | null> {
+    const now = new Date();
+    return (
+      this.evaluations.find(
+        e => e.challengeIds.includes(challengeId) &&
+          e.status === EvaluationStatus.ACTIVE &&
+          e.startDate <= now &&
+          e.endDate >= now
+      ) || null
+    );
+  }
+
+  async countUserSubmissionsForEvaluation(
+    evaluationId: string,
+    userId: string,
+    challengeId: string
+  ): Promise<number> {
+    // This would typically be implemented using submission repository
+    // For now, returning 0 as placeholder
+    return 0;
+  }
 }
 

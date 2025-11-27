@@ -38,6 +38,7 @@ export interface Submission {
   memoryKbTotal: number;
   testCaseResults: TestCaseResult[];
   errorMessage?: string | undefined;
+  evaluationId?: string | undefined;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,6 +48,7 @@ export interface CreateSubmissionRequest {
   courseId: string;
   language: ProgrammingLanguage;
   code: string;
+  evaluationId?: string | undefined;
 }
 
 export interface CreateSubmissionWithUserRequest extends CreateSubmissionRequest {

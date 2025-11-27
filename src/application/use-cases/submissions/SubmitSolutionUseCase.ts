@@ -1,14 +1,17 @@
 import { ISubmissionRepository } from '../../../domain/repositories/ISubmissionRepository';
 import { IChallengeRepository } from '../../../domain/repositories/IChallengeRepository';
 import { ICourseRepository } from '../../../domain/repositories/ICourseRepository';
+import { IEvaluationRepository } from '../../../domain/repositories/IEvaluationRepository';
 import { IJobQueueService } from '../../../domain/services/IJobQueueService';
 import { CreateSubmissionRequest, CreateSubmissionWithUserRequest, Submission } from '../../../domain/entities/Submission';
+import { EvaluationStatus } from '../../../domain/entities/Evaluation';
 
 export class SubmitSolutionUseCase {
   constructor(
     private submissionRepository: ISubmissionRepository,
     private challengeRepository: IChallengeRepository,
     private courseRepository: ICourseRepository,
+    private evaluationRepository: IEvaluationRepository,
     private jobQueueService: IJobQueueService
   ) {}
 
@@ -36,10 +39,63 @@ export class SubmitSolutionUseCase {
       throw new Error('Challenge is not available for submissions');
     }
 
-    // Create submission
+    // Check if challenge is part of an active evaluation
+    let evaluationId: string | undefined = undefined;
+    let activeEvaluation = null;
+    
+    try {
+      const evaluations = await this.evaluationRepository.findByCourseId(request.courseId);
+      if (!evaluations || evaluations.length === 0) {
+        // No evaluations for this course
+      } else {
+        const now = new Date();
+        
+        activeEvaluation = evaluations.find(
+          e => e.challengeIds.includes(request.challengeId) &&
+            e.status === EvaluationStatus.ACTIVE &&
+            e.startDate <= now &&
+            e.endDate >= now
+        );
+
+        if (activeEvaluation) {
+          evaluationId = activeEvaluation.id;
+
+          // Verify within time window
+          if (now > activeEvaluation.endDate) {
+            throw new Error('Evaluation period has ended');
+          }
+
+          // Check attempt limit
+          if (activeEvaluation.maxAttempts > 0) {
+            const userSubmissions = await this.submissionRepository.findByChallengeId(request.challengeId);
+            const attemptCount = userSubmissions.filter(
+              s => s.userId === userId && s.evaluationId === evaluationId
+            ).length;
+
+            if (attemptCount >= activeEvaluation.maxAttempts) {
+              throw new Error(
+                `Maximum attempts (${activeEvaluation.maxAttempts}) reached for this challenge in the evaluation`
+              );
+            }
+          }
+        }
+      }
+    } catch (error) {
+      // If error is a validation error we want to propagate, check the message
+      if (error instanceof Error && error.message.includes('Maximum attempts')) {
+        throw error;
+      }
+      if (error instanceof Error && error.message.includes('Evaluation period')) {
+        throw error;
+      }
+      // Otherwise, log but don't fail the submission - evaluation might not be available
+    }
+
+    // Create submission with optional evaluationId
     const submissionData: CreateSubmissionWithUserRequest = {
       ...request,
-      userId
+      userId,
+      evaluationId
     };
     const submission = await this.submissionRepository.create(submissionData);
 

@@ -9,5 +9,7 @@ export interface IEvaluationRepository {
   findByCourseId(courseId: string): Promise<Evaluation[]>;
   findByStatus(status: EvaluationStatus): Promise<Evaluation[]>;
   findByCreator(createdBy: string): Promise<Evaluation[]>;
+  findActiveByChallengeId(challengeId: string): Promise<Evaluation | null>;
+  countUserSubmissionsForEvaluation(evaluationId: string, userId: string, challengeId: string): Promise<number>;
 }
 

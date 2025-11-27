@@ -97,7 +97,7 @@ const leaderboardRepo = new ComputedLeaderboardRepository(submissionRepo, userRe
 const loginUC = new LoginUseCase(userRepo, authService);
 const registerUC = new RegisterUseCase(userRepo, authService);
 const createChallengeUC = new CreateChallengeUseCase(challengeRepo, courseRepo);
-const submitSolutionUC = new SubmitSolutionUseCase(submissionRepo, challengeRepo, courseRepo, jobQueueService);
+const submitSolutionUC = new SubmitSolutionUseCase(submissionRepo, challengeRepo, courseRepo, evaluationRepo, jobQueueService);
 const createCourseUC = new CreateCourseUseCase(courseRepo);
 const createEvaluationUC = new CreateEvaluationUseCase(evaluationRepo, courseRepo);
 

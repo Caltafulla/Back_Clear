@@ -14,6 +14,7 @@ interface ISubmissionDocument extends Document {
   memoryKbTotal: number;
   testCaseResults: TestCaseResult[];
   errorMessage?: string;
+  evaluationId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +41,7 @@ const SubmissionSchema = new Schema<ISubmissionDocument>({
   memoryKbTotal: { type: Number, default: 0 },
   testCaseResults: { type: [TestCaseResultSchema], default: [] },
   errorMessage: { type: String },
+  evaluationId: { type: String },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -63,6 +65,7 @@ export class MongoSubmissionRepository implements ISubmissionRepository {
       memoryKbTotal: doc.memoryKbTotal,
       testCaseResults: doc.testCaseResults || [],
       errorMessage: doc.errorMessage,
+      evaluationId: doc.evaluationId,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt
     } as Submission;
