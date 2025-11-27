@@ -72,6 +72,7 @@ export function createChallengeRoutes(
    */
   router.post(
     '/',
+    authMiddleware.authorize(UserRole.ADMIN, UserRole.PROFESSOR),
     ValidationMiddleware.validate(ChallengeSchemas.create),
     ErrorHandler.asyncHandler(challengeController.createChallenge.bind(challengeController))
   );
