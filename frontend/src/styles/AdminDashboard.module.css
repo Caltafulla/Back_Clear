@@ -1,0 +1,221 @@
+.adminDashboard {
+  padding: var(--spacing-lg);
+  max-width: var(--max-width);
+  margin: 0 auto;
+  width: 100%;
+}
+
+.header {
+  margin-bottom: var(--spacing-xl);
+}
+
+.title {
+  font-size: var(--text-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--gray-900);
+  margin: 0 0 var(--spacing-xs) 0;
+}
+
+.subtitle {
+  font-size: var(--text-base);
+  color: var(--gray-600);
+  margin: 0;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.statCard {
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+  padding: var(--spacing-lg);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.statCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--stat-accent, var(--primary-600));
+}
+
+.statCard:hover {
+  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-2px);
+}
+
+.statHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+}
+
+.statTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--gray-600);
+  margin: 0;
+}
+
+.statIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xl);
+  background: var(--stat-icon-bg, var(--gray-50));
+  color: var(--stat-accent, var(--primary-600));
+}
+
+.statValue {
+  font-size: var(--text-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--gray-900);
+  margin: 0;
+  line-height: 1;
+}
+
+.quickLinksSection {
+  margin-top: var(--spacing-xl);
+}
+
+.sectionTitle {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--gray-900);
+  margin: 0 0 var(--spacing-lg) 0;
+}
+
+.quickLinksGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.quickLink {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--gray-900);
+  transition: all var(--transition-base);
+  box-shadow: var(--card-shadow);
+}
+
+.quickLink:hover {
+  border-color: var(--primary-500);
+  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-2px);
+  color: var(--primary-600);
+}
+
+.quickLinkIcon {
+  font-size: var(--text-xl);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray-50);
+  border-radius: var(--radius);
+}
+
+.quickLinkLabel {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  flex: 1;
+}
+
+.loadingContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: var(--spacing-md);
+  color: var(--gray-600);
+}
+
+.errorContainer {
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--error);
+}
+
+.errorMessage {
+  font-size: var(--text-lg);
+  margin: 0;
+}
+
+/* Stat Card Accent Colors */
+.statCardPrimary::before {
+  background: var(--primary-600);
+}
+
+.statCardPrimary .statIcon {
+  background: var(--primary-50);
+  color: var(--primary-600);
+}
+
+.statCardSuccess::before {
+  background: var(--success);
+}
+
+.statCardSuccess .statIcon {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.statCardWarning::before {
+  background: var(--warning);
+}
+
+.statCardWarning .statIcon {
+  background: var(--warning-light);
+  color: var(--warning);
+}
+
+.statCardInfo::before {
+  background: var(--info);
+}
+
+.statCardInfo .statIcon {
+  background: var(--info-light);
+  color: var(--info);
+}
+
+.statCardError::before {
+  background: var(--error);
+}
+
+.statCardError .statIcon {
+  background: var(--error-light);
+  color: var(--error);
+}
+
+.statCardGray::before {
+  background: var(--gray-600);
+}
+
+.statCardGray .statIcon {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
