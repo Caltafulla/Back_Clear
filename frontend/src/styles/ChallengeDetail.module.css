@@ -1,0 +1,4 @@
+.main { padding:24px }
+.split { display:flex; gap:16px }
+.left { flex:1 }
+.right { width:520px }

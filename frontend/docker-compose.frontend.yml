@@ -1,0 +1,8 @@
+version: '3.8'
+services:
+  frontend:
+    build: .
+    ports:
+      - "4173:4173"
+    environment:
+      - VITE_API_URL=http://localhost:3000/api
