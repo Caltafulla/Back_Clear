@@ -30,7 +30,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     )
     
     // Use the same submissions data for both recent and stats
-    const submissions = submissionsRes.data?.data?.submissions || []
+    // Backend may return data as array directly or nested in submissions
+    const submissions = Array.isArray(submissionsRes.data?.data)
+      ? submissionsRes.data.data
+      : submissionsRes.data?.data?.submissions || []
     const challenges = Array.isArray(challengesRes.data?.data) 
       ? challengesRes.data.data 
       : challengesRes.data?.data?.challenges || []

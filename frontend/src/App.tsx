@@ -11,6 +11,7 @@ import type { ReactNode } from 'react'
 import type { Role } from './types/api'
 import LeaderboardPage from './pages/Leaderboard'
 import RegisterPage from './pages/Register'
+import MySubmissionsPage from './pages/MySubmissions'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminMetrics from './pages/admin/Metrics'
 import ChallengeManagement from './pages/admin/ChallengeManagement'
@@ -131,6 +132,16 @@ export default function App() {
           <RequireAuth>
             <Layout>
               <LeaderboardPage />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/my-submissions"
+        element={
+          <RequireAuth>
+            <Layout>
+              <MySubmissionsPage />
             </Layout>
           </RequireAuth>
         }

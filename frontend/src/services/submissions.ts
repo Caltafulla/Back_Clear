@@ -42,7 +42,7 @@ export async function submitSolution(payload: SubmitSolutionPayload): Promise<Su
   return normalizeSubmission(res.data?.data)
 }
 
-export async function getMySubmissions(params: { challengeId?: string; limit?: number; offset?: number }) {
+export async function getMySubmissions(params: { challengeId?: string; limit?: number; offset?: number }): Promise<Submission[]> {
   const query = new URLSearchParams()
   if (params.challengeId) query.append('challengeId', params.challengeId)
   if (params.limit) query.append('limit', params.limit.toString())
@@ -50,7 +50,18 @@ export async function getMySubmissions(params: { challengeId?: string; limit?: n
 
   const url = query.toString() ? `/submissions/my?${query.toString()}` : '/submissions/my'
   const res = await requestQueue.add(() => api.get(url))
-  const data = Array.isArray(res.data?.data) ? res.data.data : []
+  
+  // Backend may return data as array directly or nested
+  let data: any[] = []
+  if (Array.isArray(res.data?.data)) {
+    data = res.data.data
+  } else if (Array.isArray(res.data?.data?.submissions)) {
+    data = res.data.data.submissions
+  } else if (res.data?.data && !Array.isArray(res.data.data)) {
+    // Single submission object
+    data = [res.data.data]
+  }
+  
   return data
     .map(normalizeSubmission)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { useAuthStore } from '../stores/auth-store'
 import { getDashboardStats } from '../services/dashboard'
 import { CircularProgress, LinearProgress } from '../components/ui/Progress'
@@ -124,7 +125,7 @@ export default function DashboardPage() {
         <div className={`${styles.card} ${styles.submissionsCard}`}>
           <div className={styles.cardHeader}>
             <h3 className={styles.cardTitle}>Recent Submissions</h3>
-            <a href="/my-submissions" className={styles.viewAll}>View all →</a>
+            <Link to="/my-submissions" className={styles.viewAll}>View all →</Link>
           </div>
           <div className={styles.cardBody}>
             {stats?.recentSubmissions && stats.recentSubmissions.length > 0 ? (
