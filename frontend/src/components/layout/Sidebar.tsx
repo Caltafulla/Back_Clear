@@ -39,6 +39,7 @@ const Sidebar: React.FC<{ collapsed?: boolean }> = ({ collapsed = false }) => {
         { path: '/challenge-management', label: 'Manage Challenges', icon: '⚙️' },
         { path: '/course-management', label: 'Manage Courses', icon: '🏫' },
         { path: '/evaluation-management', label: 'Manage Evaluations', icon: '📝' },
+        { path: '/assistant', label: 'AI Assistant', icon: '🤖' },
       ]
     }
   ]
@@ -54,7 +55,9 @@ const Sidebar: React.FC<{ collapsed?: boolean }> = ({ collapsed = false }) => {
     {
       section: 'Management',
       items: [
+        { path: '/challenge-management', label: 'Manage Challenges', icon: '⚙️' },
         { path: '/professor/evaluations', label: 'Manage Evaluations', icon: '📝' },
+        { path: '/assistant', label: 'AI Assistant', icon: '🤖' },
       ]
     }
   ]
