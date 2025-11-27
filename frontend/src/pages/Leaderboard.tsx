@@ -14,6 +14,7 @@ import {
 import { useAuthStore } from '../stores/auth-store'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import Badge from '../components/ui/Badge'
+import { LinearProgress } from '../components/ui/Progress'
 import styles from '../styles/Leaderboard.module.css'
 
 type Tab = 'challenge' | 'course' | 'evaluation'
@@ -109,6 +110,12 @@ export default function LeaderboardPage() {
     return evaluations.find((e: any) => e.id === selectedId)
   }, [selectedId, tab, challenges, courses, evaluations])
 
+  // Calculate max score for progress bar
+  const maxScore = React.useMemo(() => {
+    if (!leaderboardQuery.data || leaderboardQuery.data.length === 0) return 100
+    return Math.max(...leaderboardQuery.data.map(r => r.score || 0), 100)
+  }, [leaderboardQuery.data])
+
   return (
     <div className={styles.leaderboardPage}>
       <div className={styles.header}>
@@ -154,39 +161,41 @@ export default function LeaderboardPage() {
           </div>
         ) : (
           <div className={styles.selectorContent}>
-            <label className={styles.selectorLabel}>
-              Select {tab === 'challenge' ? 'Challenge' : tab === 'course' ? 'Course' : 'Evaluation'}
-            </label>
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className={styles.selector}
-            >
-              <option value="">Choose one...</option>
-              {tab === 'challenge' &&
-                challenges.map((c: any) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}
-                  </option>
-                ))}
-              {tab === 'course' &&
-                courses.map((c: any) => {
-                  const displayName = c.name 
-                    ? (c.code ? `${c.code} - ${c.name}` : c.name)
-                    : c.title || c.id
-                  return (
+            <div className={styles.selectorRow}>
+              <label className={styles.selectorLabel}>
+                Select {tab === 'challenge' ? 'Challenge' : tab === 'course' ? 'Course' : 'Evaluation'}
+              </label>
+              <select
+                value={selectedId}
+                onChange={(e) => setSelectedId(e.target.value)}
+                className={styles.selector}
+              >
+                <option value="">Choose one...</option>
+                {tab === 'challenge' &&
+                  challenges.map((c: any) => (
                     <option key={c.id} value={c.id}>
-                      {displayName}
+                      {c.title}
                     </option>
-                  )
-                })}
-              {tab === 'evaluation' &&
-                evaluations.map((ev: any) => (
-                  <option key={ev.id} value={ev.id}>
-                    {ev.title || ev.name || ev.id}
-                  </option>
-                ))}
-            </select>
+                  ))}
+                {tab === 'course' &&
+                  courses.map((c: any) => {
+                    const displayName = c.name 
+                      ? (c.code ? `${c.code} - ${c.name}` : c.name)
+                      : c.title || c.id
+                    return (
+                      <option key={c.id} value={c.id}>
+                        {displayName}
+                      </option>
+                    )
+                  })}
+                {tab === 'evaluation' &&
+                  evaluations.map((ev: any) => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.title || ev.name || ev.id}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
             {/* Filters */}
             <div className={styles.filtersRow}>
@@ -197,7 +206,7 @@ export default function LeaderboardPage() {
                   onChange={(e) => setLanguage((e.target.value || '') as any)}
                   className={styles.filterControl}
                 >
-                  <option value="">All</option>
+                  <option value="">All Languages</option>
                   <option value="python">Python</option>
                   <option value="javascript">JavaScript</option>
                   <option value="cpp">C++</option>
@@ -206,7 +215,7 @@ export default function LeaderboardPage() {
               </div>
 
               <div className={styles.filterGroup}>
-                <label className={styles.filterLabel}>From</label>
+                <label className={styles.filterLabel}>From Date</label>
                 <input
                   type="date"
                   value={from}
@@ -216,7 +225,7 @@ export default function LeaderboardPage() {
               </div>
 
               <div className={styles.filterGroup}>
-                <label className={styles.filterLabel}>To</label>
+                <label className={styles.filterLabel}>To Date</label>
                 <input
                   type="date"
                   value={to}
@@ -226,14 +235,15 @@ export default function LeaderboardPage() {
               </div>
 
               {tab !== 'evaluation' && (
-                <div className={styles.filterGroup} style={{ alignSelf: 'end' }}>
+                <div className={styles.filterGroup}>
                   <label className={styles.checkboxLabel}>
                     <input
                       type="checkbox"
                       checked={includeEval}
                       onChange={(e) => setIncludeEval(e.target.checked)}
+                      className={styles.checkbox}
                     />
-                    <span style={{ marginLeft: 6 }}>Include evaluation submissions</span>
+                    <span>Include evaluation submissions</span>
                   </label>
                 </div>
               )}
@@ -275,30 +285,13 @@ export default function LeaderboardPage() {
           </div>
         ) : leaderboardQuery.isError ? (
           <div className={styles.errorState}>
-            <span>❌</span>
+            <span className={styles.errorIcon}>❌</span>
             <h3>Failed to load leaderboard</h3>
             <p>
               {leaderboardQuery.error instanceof Error 
                 ? leaderboardQuery.error.message 
                 : 'Please try again later'}
             </p>
-            {leaderboardQuery.error && (
-              <details style={{ marginTop: '16px', textAlign: 'left', maxWidth: '600px' }}>
-                <summary style={{ cursor: 'pointer', color: 'var(--primary-600)' }}>
-                  Error details
-                </summary>
-                <pre style={{ 
-                  marginTop: '8px', 
-                  padding: '12px', 
-                  background: 'var(--gray-100)', 
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  overflow: 'auto'
-                }}>
-                  {JSON.stringify(leaderboardQuery.error, null, 2)}
-                </pre>
-              </details>
-            )}
           </div>
         ) : (leaderboardQuery.data || []).length === 0 ? (
           <div className={styles.emptyState}>
@@ -322,6 +315,7 @@ export default function LeaderboardPage() {
                   const rankIcon = getRankIcon(row.rank)
                   const rankClass = getRankClass(row.rank)
                   const isUser = isCurrentUser(row.userId)
+                  const scorePercentage = maxScore > 0 ? (row.score / maxScore) * 100 : 0
                   
                   return (
                     <tr
@@ -339,14 +333,27 @@ export default function LeaderboardPage() {
                           <div className={styles.userAvatar}>
                             {row.userName.charAt(0).toUpperCase()}
                           </div>
-                          <span className={styles.userName}>
-                            {row.userName}
-                            {isUser && <Badge status="ACCEPTED" variant="status">You</Badge>}
-                          </span>
+                          <div className={styles.userDetails}>
+                            <span className={styles.userName}>
+                              {row.userName}
+                            </span>
+                            {isUser && (
+                              <Badge status="ACCEPTED" variant="status" className={styles.userBadge}>
+                                You
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className={styles.scoreCell}>
-                        <div className={styles.scoreValue}>{row.score}</div>
+                        <div className={styles.scoreContainer}>
+                          <div className={styles.scoreValue}>{row.score}</div>
+                          <LinearProgress 
+                            value={row.score} 
+                            max={maxScore}
+                            className={styles.scoreProgress}
+                          />
+                        </div>
                       </td>
                       <td className={styles.timeCell}>
                         {row.totalTime ? (
