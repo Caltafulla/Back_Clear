@@ -3,6 +3,7 @@ import LoginPage from './pages/Login'
 import DashboardPage from './pages/Dashboard'
 import ChallengesList from './pages/challenges/List'
 import ChallengeDetail from './pages/challenges/Detail'
+import Layout from './components/layout/Layout'
 import { useAuthStore } from './stores/auth-store'
 import type { ReactNode } from 'react'
 import type { Role } from './types/api'
@@ -20,10 +21,35 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/dashboard"
-        element={<RequireAuth roles={["STUDENT"]}><DashboardPage /></RequireAuth>}
+        element={
+          <RequireAuth roles={["STUDENT"]}>
+            <Layout>
+              <DashboardPage />
+            </Layout>
+          </RequireAuth>
+        }
       />
-      <Route path="/challenges" element={<RequireAuth><ChallengesList /></RequireAuth>} />
-      <Route path="/challenges/:id" element={<RequireAuth><ChallengeDetail /></RequireAuth>} />
+      <Route
+        path="/challenges"
+        element={
+          <RequireAuth>
+            <Layout>
+              <ChallengesList />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/challenges/:id"
+        element={
+          <RequireAuth>
+            <Layout>
+              <ChallengeDetail />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route path="/test-layout" element={<Layout><div style={{ padding: 24 }}>Test Layout OK</div></Layout>} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
