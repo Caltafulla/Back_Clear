@@ -28,5 +28,6 @@ export interface IJobQueueService {
     completed: number;
     failed: number;
   }>;
+  isConnected(): Promise<boolean>;
 }
 

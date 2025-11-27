@@ -87,5 +87,23 @@ export class JobQueueService implements IJobQueueService {
       failed: failed.length
     };
   }
+
+  async isConnected(): Promise<boolean> {
+    try {
+      // Access underlying redis client if available
+      const client = (this.submissionQueue as any).client;
+      if (!client) return false;
+      // Some clients have `connected` property
+      if (typeof client.connected !== 'undefined') return !!client.connected;
+      // Try a ping if available
+      if (typeof client.ping === 'function') {
+        await client.ping();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      return false;
+    }
+  }
 }
 

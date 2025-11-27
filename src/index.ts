@@ -41,6 +41,7 @@ import { LoginUseCase } from './application/use-cases/auth/LoginUseCase';
 import { RegisterUseCase } from './application/use-cases/auth/RegisterUseCase';
 import { CreateChallengeUseCase } from './application/use-cases/challenges/CreateChallengeUseCase';
 import { SubmitSolutionUseCase } from './application/use-cases/submissions/SubmitSolutionUseCase';
+import { EvaluationService } from './frameworks/EvaluationService';
 import { CreateCourseUseCase } from './application/use-cases/courses/CreateCourseUseCase';
 import { CreateEvaluationUseCase } from './application/use-cases/evaluations/CreateEvaluationUseCase';
 import { AuthController } from './adapters/controllers/AuthController';
@@ -92,12 +93,13 @@ const challengeRepo = new MongoChallengeRepository();
 const courseRepo = new MockCourseRepository();
 const submissionRepo = new MongoSubmissionRepository();
 const evaluationRepo = new MockEvaluationRepository();
+const evaluationService = new EvaluationService(evaluationRepo, submissionRepo);
 const leaderboardRepo = new ComputedLeaderboardRepository(submissionRepo, userRepo, evaluationRepo);
 
 const loginUC = new LoginUseCase(userRepo, authService);
 const registerUC = new RegisterUseCase(userRepo, authService);
 const createChallengeUC = new CreateChallengeUseCase(challengeRepo, courseRepo);
-const submitSolutionUC = new SubmitSolutionUseCase(submissionRepo, challengeRepo, courseRepo, evaluationRepo, jobQueueService);
+const submitSolutionUC = new SubmitSolutionUseCase(submissionRepo, challengeRepo, courseRepo, evaluationService, jobQueueService);
 const createCourseUC = new CreateCourseUseCase(courseRepo);
 const createEvaluationUC = new CreateEvaluationUseCase(evaluationRepo, courseRepo);
 
@@ -148,16 +150,152 @@ app.use('/api/leaderboard', createLeaderboardRoutes(leaderboardController, authM
 app.use('/api/ai', createAIAssistantRoutes(aiAssistantController, authMiddleware));
 
 // 📊 Endpoint de métricas (mock)
-app.get('/api/metrics', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      submissions_total: 0,
-      submissions_failed_total: 0,
-      average_execution_time_ms: 0,
-      active_runners: 0
-    }
-  });
+app.get('/api/metrics', async (req, res) => {
+  try {
+    // Helpers
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const allRecentSubmissions = await submissionRepo.findRecentSubmissions(1000000, 0);
+
+    const getSubmissionsByStatus = async () => {
+      const result: any = {};
+      const { SubmissionStatus } = require('./domain/entities/Submission');
+      for (const key of Object.keys(SubmissionStatus)) {
+        const val = (SubmissionStatus as any)[key];
+        const subs = await submissionRepo.findByStatus(val as any);
+        result[val] = subs.length;
+      }
+      return result;
+    };
+
+    const getSubmissionsByLanguage = async () => {
+      const result: any = {};
+      const { ProgrammingLanguage } = require('./domain/entities/Submission');
+      for (const key of Object.keys(ProgrammingLanguage)) {
+        const val = (ProgrammingLanguage as any)[key];
+        const subs = await submissionRepo.findByLanguage(val as any);
+        result[val] = subs.length;
+      }
+      return result;
+    };
+
+    const submissionsToday = allRecentSubmissions.filter(s => new Date(s.createdAt) >= startOfToday);
+
+    const getMostPopularChallenges = async () => {
+      const counts: Record<string, number> = {};
+      for (const s of allRecentSubmissions) {
+        counts[s.challengeId] = (counts[s.challengeId] || 0) + 1;
+      }
+      // sort by count desc and return top 5 challengeIds
+      return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([challengeId, count]) => ({ challengeId, submissions: count }));
+    };
+
+    const getChallengesByDifficulty = async () => {
+      const difficulties = ['Easy', 'Medium', 'Hard'];
+      const result: any = {};
+      for (const d of difficulties) {
+        const list = await challengeRepo.findByDifficulty(d);
+        result[d] = list.length;
+      }
+      return result;
+    };
+
+    const getUsersByRole = async () => {
+      const roles = ['STUDENT', 'ADMIN', 'PROFESSOR'];
+      const result: any = {};
+      for (const r of roles) {
+        const users = await userRepo.findByRole(r);
+        result[r] = users.length;
+      }
+      return result;
+    };
+
+    const getActiveUsersToday = async () => {
+      const unique = new Set<string>();
+      for (const s of submissionsToday) unique.add(s.userId);
+      return unique.size;
+    };
+
+    const getCompletedEvaluations = async () => {
+      const { EvaluationStatus } = require('./domain/entities/Evaluation');
+      const completed = await evaluationRepo.findByStatus(EvaluationStatus.FINISHED);
+      return completed.length;
+    };
+
+    const getEvaluationParticipationRate = async () => {
+      const allUsers = await userRepo.findAll(1000000, 0);
+      const submissionsWithEval = allRecentSubmissions.filter(s => s.evaluationId);
+      const uniqueUsers = new Set(submissionsWithEval.map(s => s.userId));
+      return allUsers.length === 0 ? 0 : uniqueUsers.size / allUsers.length;
+    };
+
+    const getAverageExecutionTime = async () => {
+      if (allRecentSubmissions.length === 0) return 0;
+      const sum = allRecentSubmissions.reduce((acc, s) => acc + (s.timeMsTotal || 0), 0);
+      return sum / allRecentSubmissions.length;
+    };
+
+    const queueStats = await jobQueueService.getQueueStats();
+
+    const workerUtilization = (() => {
+      const denom = queueStats.waiting + queueStats.active;
+      if (denom === 0) return 0;
+      return queueStats.active / denom;
+    })();
+
+    const redisConnected = await jobQueueService.isConnected();
+
+    const dbConnections = {
+      readyState: (mongoose.connection && (mongoose.connection as any).readyState) || 0
+    };
+
+    const submissionsStats = await submissionRepo.getSubmissionStats();
+
+    res.json({
+      success: true,
+      data: {
+        submissions: {
+          total: allRecentSubmissions.length,
+          by_status: await getSubmissionsByStatus(),
+          today: submissionsToday.length,
+          by_language: await getSubmissionsByLanguage(),
+          success_rate: submissionsStats.total === 0 ? 0 : submissionsStats.accepted / submissionsStats.total
+        },
+        challenges: {
+          total: (await challengeRepo.findAll(1000000, 0)).length,
+          by_difficulty: await getChallengesByDifficulty(),
+          most_popular: await getMostPopularChallenges()
+        },
+        users: {
+          total: (await userRepo.findAll(1000000, 0)).length,
+          by_role: await getUsersByRole(),
+          active_today: await getActiveUsersToday()
+        },
+        evaluations: {
+          active: (await evaluationRepo.findByStatus((require('./domain/entities/Evaluation').EvaluationStatus).ACTIVE)).length,
+          completed: await getCompletedEvaluations(),
+          participation_rate: await getEvaluationParticipationRate()
+        },
+        performance: {
+          average_execution_time: await getAverageExecutionTime(),
+          queue_wait_time: queueStats.waiting,
+          worker_utilization: workerUtilization
+        },
+        system: {
+          uptime: process.uptime(),
+          memory_usage: process.memoryUsage(),
+          redis_connected: redisConnected,
+          db_connections: dbConnections
+        }
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to gather metrics', error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 // 📘 Swagger Docs
