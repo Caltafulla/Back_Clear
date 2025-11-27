@@ -41,7 +41,7 @@ export default function SubmissionStatus({ submission, testCases = [] }: Submiss
   }
 
   const statusConfig = getStatusConfig(submission.status)
-  const hasResults = testCases.length > 0 && (submission.status === 'ACCEPTED' || submission.status === 'WRONG_ANSWER')
+  const hasResults = testCases.length > 0
 
   return (
     <div className={styles.submissionStatus}>
@@ -78,6 +78,11 @@ export default function SubmissionStatus({ submission, testCases = [] }: Submiss
           </div>
         )}
       </div>
+      {submission.errorMessage && (
+        <div className={styles.errorMessage}>
+          {submission.errorMessage}
+        </div>
+      )}
 
       {hasResults && (
         <div className={styles.resultsSection}>

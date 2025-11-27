@@ -18,6 +18,7 @@ export interface TestCase {
   input: string
   output: string
   expectedOutput?: string // Backend uses this name
+  id?: string
 }
 
 export interface Challenge {
@@ -36,10 +37,22 @@ export interface Challenge {
   updatedAt?: string
 }
 
-export type Language = 'typescript' | 'javascript'
+export type Language = 'python' | 'javascript' | 'cpp' | 'java'
+
+export interface SubmissionTestCaseResult {
+  caseId: string
+  status: Submission['status']
+  timeMs: number
+  memoryKb: number
+  actualOutput?: string
+  expectedOutput?: string
+  errorMessage?: string
+}
 
 export interface Submission {
   id: string
+  challengeId: string
+  courseId: string
   code: string
   language: Language
   status: 'QUEUED' | 'RUNNING' | 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'COMPILATION_ERROR'
@@ -47,4 +60,7 @@ export interface Submission {
   memoryUsage?: number
   score?: number
   createdAt: string
+  updatedAt?: string
+  errorMessage?: string
+  testCaseResults?: SubmissionTestCaseResult[]
 }

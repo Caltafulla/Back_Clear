@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import type { Language } from '../../types/api'
 import styles from '../../styles/CodeEditor.module.css'
@@ -14,14 +14,9 @@ type CodeEditorProps = {
   isRunning?: boolean
 }
 
-const languages: { value: Language; label: string }[] = [
-  { value: 'typescript', label: 'TypeScript' },
-  { value: 'javascript', label: 'JavaScript' },
-]
-
 export default function CodeEditor({
   value = '',
-  language = 'typescript',
+  language = 'python',
   onChange,
   onSubmit,
   onRun,
@@ -29,32 +24,43 @@ export default function CodeEditor({
   consoleOutput = '',
   isRunning = false,
 }: CodeEditorProps) {
-  const [selectedLanguage, setSelectedLanguage] = useState<Language>(language)
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [editorValue, setEditorValue] = useState(value)
+
+  useEffect(() => {
+    setEditorValue(value)
+  }, [value])
 
   const handleEditorChange = (newValue: string | undefined) => {
     setEditorValue(newValue || '')
     onChange?.(newValue)
   }
 
+  useEffect(() => {
+    if ((consoleOutput && !consoleOpen) || isRunning) {
+      setConsoleOpen(true)
+    }
+  }, [consoleOutput, isRunning, consoleOpen])
+
+  const getLanguageLabel = (lang: Language) => {
+    switch (lang) {
+      case 'python':
+        return 'Python'
+      case 'javascript':
+        return 'JavaScript'
+      case 'cpp':
+        return 'C++'
+      case 'java':
+        return 'Java'
+      default:
+        return lang
+    }
+  }
+
   return (
     <div className={styles.editorContainer}>
       <div className={styles.editorHeader}>
-        <div className={styles.headerLeft}>
-          <select
-            value={selectedLanguage}
-            onChange={(e) => setSelectedLanguage(e.target.value as Language)}
-            className={styles.languageSelect}
-            disabled={disabled}
-          >
-            {languages.map((lang) => (
-              <option key={lang.value} value={lang.value}>
-                {lang.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <div className={styles.languageTag}>{getLanguageLabel(language)}</div>
         <div className={styles.headerRight}>
           <button
             className={`btn btn-secondary ${styles.actionButton}`}
@@ -76,7 +82,7 @@ export default function CodeEditor({
       <div className={styles.editorWrapper}>
         <Editor
           height="100%"
-          language={selectedLanguage}
+          language={language}
           value={editorValue}
           onChange={handleEditorChange}
           theme="vs-dark"

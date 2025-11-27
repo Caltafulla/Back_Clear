@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getChallenge } from '../../services/challenges'
+import { getMySubmissions, submitSolution } from '../../services/submissions'
 import CodeEditor from '../../components/editor/CodeEditor'
 import SubmissionStatus from '../../components/submission/SubmissionStatus'
 import Badge from '../../components/ui/Badge'
@@ -13,6 +14,7 @@ type Tab = 'description' | 'solutions' | 'discussion'
 
 export default function ChallengeDetail() {
   const { id } = useParams<{ id: string }>()
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<Tab>('description')
   const [code, setCode] = useState('')
   const [submission, setSubmission] = useState<Submission | null>(null)
@@ -24,6 +26,52 @@ export default function ChallengeDetail() {
     queryFn: () => getChallenge(id!),
     enabled: !!id,
   })
+
+  const { data: mySubmissions = [] } = useQuery({
+    queryKey: ['my-submissions', id],
+    queryFn: () => getMySubmissions({ challengeId: id!, limit: 5 }),
+    enabled: !!id,
+    staleTime: 30000,
+  })
+
+  useEffect(() => {
+    if (mySubmissions.length > 0) {
+      setSubmission(mySubmissions[0])
+    }
+  }, [mySubmissions])
+
+  const submitMutation = useMutation({
+    mutationFn: submitSolution,
+    onMutate: () => {
+      setConsoleOutput('Submitting your code...\n')
+    },
+    onSuccess: (newSubmission) => {
+      setSubmission(newSubmission)
+      setConsoleOutput((prev) => `${prev}Submission queued successfully!`)
+      queryClient.invalidateQueries({ queryKey: ['my-submissions', id] })
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.message || error?.message || 'Failed to submit'
+      setConsoleOutput(`Submission failed: ${message}`)
+    },
+  })
+
+  const latestTestCaseResults = useMemo(() => {
+    if (!submission?.testCaseResults || !challenge?.testCases) return []
+    const testCaseMap = new Map(challenge.testCases.map((tc) => [tc.id, tc]))
+
+    return submission.testCaseResults.map((result, idx) => {
+      const tc = testCaseMap.get(result.caseId)
+      return {
+        input: tc?.input || `Case ${idx + 1}`,
+        expectedOutput: tc?.output || result.expectedOutput || '',
+        actualOutput: result.actualOutput,
+        passed: result.status === 'ACCEPTED',
+        executionTime: result.timeMs,
+        memoryUsage: result.memoryKb,
+      }
+    })
+  }, [submission, challenge])
 
   const handleRun = async () => {
     setIsRunning(true)
@@ -40,8 +88,17 @@ export default function ChallengeDetail() {
       alert('Please write some code before submitting')
       return
     }
-    // TODO: Implement actual submission
-    console.log('Submitting code:', code)
+    if (!challenge?.courseId) {
+      alert('Course information is missing for this challenge.')
+      return
+    }
+
+    submitMutation.mutate({
+      challengeId: challenge.id,
+      courseId: challenge.courseId,
+      language: 'python',
+      code,
+    })
   }
 
   if (isLoading) {
@@ -140,7 +197,24 @@ export default function ChallengeDetail() {
 
             {activeTab === 'solutions' && (
               <div className={styles.solutions}>
-                <p>Solutions will be available after you solve this challenge.</p>
+                {mySubmissions.length === 0 ? (
+                  <div className={styles.solutionsEmpty}>
+                    <p>Solutions will be available after you submit your code.</p>
+                    <p>Build and submit your solution to see detailed evaluations.</p>
+                  </div>
+                ) : (
+                  <div className={styles.solutionsList}>
+                    {mySubmissions.map((submissionItem) => (
+                      <SubmissionStatus
+                        key={submissionItem.id}
+                        submission={submissionItem}
+                        testCases={
+                          submissionItem.id === submission?.id ? latestTestCaseResults : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -154,17 +228,20 @@ export default function ChallengeDetail() {
 
         {/* Right Panel - Editor */}
         <div className={styles.rightPanel}>
-          <CodeEditor
-            value={code}
-            onChange={setCode}
-            onSubmit={handleSubmit}
-            onRun={handleRun}
-            disabled={isRunning}
-            consoleOutput={consoleOutput}
-            isRunning={isRunning}
-          />
+          <div className={styles.codeEditorWrapper}>
+            <CodeEditor
+              value={code}
+              onChange={setCode}
+              onSubmit={handleSubmit}
+              onRun={handleRun}
+              disabled={isRunning || submitMutation.isPending}
+              consoleOutput={consoleOutput}
+              isRunning={isRunning || submitMutation.isPending}
+              language="python"
+            />
+          </div>
           {submission && (
-            <SubmissionStatus submission={submission} />
+            <SubmissionStatus submission={submission} testCases={latestTestCaseResults} />
           )}
         </div>
       </div>

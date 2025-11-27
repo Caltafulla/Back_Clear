@@ -1,5 +1,6 @@
 .challengeDetail {
   height: calc(100vh - var(--header-height));
+  max-height: calc(100vh - var(--header-height));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -23,7 +24,9 @@
 
 .splitView {
   display: flex;
+  flex: 1;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -32,9 +35,11 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
   background: white;
   border-right: 1px solid var(--gray-200);
   padding: var(--spacing-lg);
+  min-width: 0;
 }
 
 .rightPanel {
@@ -43,8 +48,25 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--gray-50);
-  padding: var(--spacing-lg);
-  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+  min-width: 0;
+  min-height: 0;
+}
+
+.rightPanel > :last-child {
+  flex-shrink: 0;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.codeEditorWrapper {
+  flex: 1;
+  min-height: 600px;
+  max-height: calc(100vh - var(--header-height) - 100px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .challengeHeader {
@@ -123,6 +145,8 @@
 
 .tabContent {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .description {
@@ -248,7 +272,28 @@
   color: var(--gray-700);
 }
 
-.solutions,
+.solutions {
+  padding: var(--spacing-lg) 0;
+  color: var(--gray-600);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.solutionsEmpty {
+  text-align: center;
+  padding: var(--spacing-lg);
+  background: var(--gray-50);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gray-200);
+}
+
+.solutionsList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
 .discussion {
   padding: var(--spacing-lg);
   text-align: center;
