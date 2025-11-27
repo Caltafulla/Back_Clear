@@ -5,6 +5,29 @@ export class MockCourseRepository implements ICourseRepository {
   private courses: Course[] = [];
   private courseStudents: CourseStudent[] = [];
 
+  constructor() {
+    // Seed a demo course used in tests so submissions referencing that course succeed
+    const seededId = 'course-1764202144340';
+    const existing = this.courses.find(c => c.id === seededId);
+    if (!existing) {
+      const course: Course = {
+        id: seededId,
+        name: 'Demo Course',
+        code: 'DEMO2025',
+        description: 'Auto-seeded course for integration tests',
+        period: '2025-1',
+        group: 1,
+        professorIds: ['6927947252afd27eaa3528c1'],
+        studentIds: ['692793e452afd27eaa3528bb'],
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      this.courses.push(course);
+      this.courseStudents.push({ courseId: seededId, studentId: '692793e452afd27eaa3528bb', enrolledAt: new Date() });
+    }
+  }
+
   async findById(id: string): Promise<Course | null> {
     return this.courses.find(c => c.id === id) || null;
   }

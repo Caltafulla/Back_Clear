@@ -1,5 +1,6 @@
 import { ISubmissionRepository } from '../../domain/repositories/ISubmissionRepository';
 import { Submission, CreateSubmissionRequest, SubmissionStatus, ProgrammingLanguage } from '../../domain/entities/Submission';
+import { submissionEvents } from '../../frameworks/SubmissionEvents';
 
 export class MockSubmissionRepository implements ISubmissionRepository {
   private submissions: Submission[] = [];
@@ -34,6 +35,11 @@ export class MockSubmissionRepository implements ISubmissionRepository {
       updatedAt: new Date()
     } as Submission;
     this.submissions[index] = updatedSubmission;
+    try {
+      submissionEvents.emit('submission.updated', updatedSubmission);
+    } catch (e) {
+      // ignore emitter errors
+    }
     return updatedSubmission;
   }
 

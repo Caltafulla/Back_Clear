@@ -1,9 +1,18 @@
 import Queue from 'bull';
+import mongoose from 'mongoose';
 import { ProcessSubmissionUseCase } from '../application/use-cases/submissions/ProcessSubmissionUseCase';
 import { ISubmissionRepository } from '../domain/repositories/ISubmissionRepository';
 import { IRunnerService } from '../domain/services/IRunnerService';
 import { ILeaderboardRepository } from '../domain/repositories/ILeaderboardRepository';
 import { Logger } from '../frameworks/Logger';
+
+// Concrete implementations to run inside the worker
+import { MockSubmissionRepository } from '../adapters/repositories/MockSubmissionRepository';
+import { MongoSubmissionRepository } from '../adapters/repositories/MongoSubmissionRepository';
+import { RunnerService } from '../frameworks/RunnerService';
+import { ComputedLeaderboardRepository } from '../adapters/repositories/ComputedLeaderboardRepository';
+import { MongoUserRepository } from '../adapters/repositories/MongoUserRepository';
+import { MockEvaluationRepository } from '../adapters/repositories/MockEvaluationRepository';
 
 class Worker {
   private submissionQueue: Queue.Queue;
@@ -14,11 +23,13 @@ class Worker {
     this.logger = new Logger('Worker');
     this.submissionQueue = new Queue('submission processing', process.env.REDIS_URL || 'redis://localhost:6379');
     
-    // Initialize dependencies (these would be injected in a real implementation)
-    const submissionRepository = {} as ISubmissionRepository;
-    const runnerService = {} as IRunnerService;
-    const leaderboardRepository = {} as ILeaderboardRepository;
-    
+    // Initialize concrete dependencies used by the worker
+    const submissionRepository = new MongoSubmissionRepository();
+    const runnerService = new RunnerService();
+    const userRepo = new MongoUserRepository();
+    const evaluationRepo = new MockEvaluationRepository();
+    const leaderboardRepository = new ComputedLeaderboardRepository(submissionRepository, userRepo, evaluationRepo) as ILeaderboardRepository;
+
     this.processSubmissionUseCase = new ProcessSubmissionUseCase(
       submissionRepository,
       runnerService,
@@ -111,10 +122,19 @@ class Worker {
   }
 }
 
-// Start worker
-const worker = new Worker();
-worker.start().catch((error) => {
-  console.error('Failed to start worker:', error);
-  process.exit(1);
-});
+// Connect to MongoDB then start worker
+const DATABASE_URL = process.env.DATABASE_URL || 'mongodb://localhost:27017/algorithmic-challenges';
+
+mongoose.connect(DATABASE_URL)
+  .then(() => {
+    const worker = new Worker();
+    worker.start().catch((error) => {
+      console.error('Failed to start worker:', error);
+      process.exit(1);
+    });
+  })
+  .catch((err) => {
+    console.error('Worker failed to connect to MongoDB', err);
+    process.exit(1);
+  });
 

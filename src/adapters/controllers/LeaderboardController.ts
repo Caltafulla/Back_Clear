@@ -45,10 +45,25 @@ export class LeaderboardController {
         parseInt(limit as string)
       );
 
-      res.status(200).json({
-        success: true,
-        data: leaderboard
-      });
+      // Format response to requested structure
+      const rankings = await Promise.all(
+        leaderboard.entries.map(async (e, idx) => {
+          // Try to include minimal user info if available (userRepo not directly available here)
+          return {
+            rank: e.rank,
+            user: {
+              id: e.userId,
+              name: `${e.firstName || ''} ${e.lastName || ''}`.trim(),
+              email: undefined
+            },
+            score: e.score,
+            totalTime: e.averageTimeMs,
+            submissionId: undefined
+          };
+        })
+      );
+
+      res.status(200).json({ success: true, data: { rankings } });
     } catch (error) {
       res.status(500).json({
         success: false,
@@ -98,10 +113,15 @@ export class LeaderboardController {
         parseInt(limit as string)
       );
 
-      res.status(200).json({
-        success: true,
-        data: leaderboard
-      });
+      const rankings = leaderboard.entries.map(e => ({
+        rank: e.rank,
+        user: { id: e.userId, name: `${e.firstName || ''} ${e.lastName || ''}`.trim(), email: undefined },
+        score: e.score,
+        totalTime: e.averageTimeMs,
+        submissionId: undefined
+      }));
+
+      res.status(200).json({ success: true, data: { rankings } });
     } catch (error) {
       res.status(500).json({
         success: false,

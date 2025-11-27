@@ -63,6 +63,7 @@ services:
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
+      DATABASE_URL: mongodb://admin:password123@mongodb:27017/algorithmic-challenges?authSource=admin
       WORKER_TYPE: python
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
@@ -81,6 +82,7 @@ services:
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
+      DATABASE_URL: mongodb://admin:password123@mongodb:27017/algorithmic-challenges?authSource=admin
       WORKER_TYPE: javascript
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
@@ -99,6 +101,7 @@ services:
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
+      DATABASE_URL: mongodb://admin:password123@mongodb:27017/algorithmic-challenges?authSource=admin
       WORKER_TYPE: cpp
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
@@ -117,6 +120,7 @@ services:
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
+      DATABASE_URL: mongodb://admin:password123@mongodb:27017/algorithmic-challenges?authSource=admin
       WORKER_TYPE: java
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:

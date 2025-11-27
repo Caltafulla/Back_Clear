@@ -28,11 +28,14 @@ import { AuthService } from './frameworks/AuthService';
 import { JobQueueService } from './frameworks/JobQueueService';
 import { RunnerService } from './frameworks/RunnerService';
 import { AIAssistantService } from './frameworks/AIAssistantService';
+import { submissionEvents } from './frameworks/SubmissionEvents';
 import { MongoUserRepository } from './adapters/repositories/MongoUserRepository';
 import { MongoChallengeRepository } from './adapters/repositories/MongoChallengeRepository';
 import { MockCourseRepository } from './adapters/repositories/MockCourseRepository';
 import { MockSubmissionRepository } from './adapters/repositories/MockSubmissionRepository';
+import { MongoSubmissionRepository } from './adapters/repositories/MongoSubmissionRepository';
 import { MockLeaderboardRepository } from './adapters/repositories/MockLeaderboardRepository';
+import { ComputedLeaderboardRepository } from './adapters/repositories/ComputedLeaderboardRepository';
 import { MockEvaluationRepository } from './adapters/repositories/MockEvaluationRepository';
 import { LoginUseCase } from './application/use-cases/auth/LoginUseCase';
 import { RegisterUseCase } from './application/use-cases/auth/RegisterUseCase';
@@ -58,6 +61,16 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Capturar errores de parseo JSON (body-parser) y devolver 400 en vez de 500
+app.use((err: any, req: any, res: any, next: any) => {
+  if (err && err.status === 400 && err.type === 'entity.parse.failed') {
+    const loggerInstance = new Logger('Application');
+    loggerInstance.error('Invalid JSON payload', { error: err.message, url: req.url, method: req.method });
+    return res.status(400).json({ success: false, message: 'Invalid JSON payload' });
+  }
+  return next(err);
+});
+
 // 📈 Rate limit y logs
 app.use(rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
@@ -77,9 +90,9 @@ const aiAssistantService = new AIAssistantService();
 const userRepo = new MongoUserRepository();
 const challengeRepo = new MongoChallengeRepository();
 const courseRepo = new MockCourseRepository();
-const submissionRepo = new MockSubmissionRepository();
-const leaderboardRepo = new MockLeaderboardRepository();
+const submissionRepo = new MongoSubmissionRepository();
 const evaluationRepo = new MockEvaluationRepository();
+const leaderboardRepo = new ComputedLeaderboardRepository(submissionRepo, userRepo, evaluationRepo);
 
 const loginUC = new LoginUseCase(userRepo, authService);
 const registerUC = new RegisterUseCase(userRepo, authService);
@@ -94,7 +107,24 @@ const submissionController = new SubmissionController(submitSolutionUC, submissi
 const courseController = new CourseController(createCourseUC, courseRepo);
 const evaluationController = new EvaluationController(createEvaluationUC, evaluationRepo);
 const leaderboardController = new LeaderboardController(leaderboardRepo);
+const leaderboardService = new (require('./frameworks/LeaderboardService').LeaderboardService)(
+  leaderboardRepo,
+  challengeRepo,
+  courseRepo,
+  evaluationRepo
+);
 const aiAssistantController = new AIAssistantController(aiAssistantService);
+
+// Subscribe to submission updates so leaderboards update automatically
+submissionEvents.on('submission.updated', async (submission: any) => {
+  try {
+    await leaderboardService.updateChallengeLeaderboard(submission);
+    await leaderboardService.updateCourseLeaderboardForSubmission(submission);
+    await leaderboardService.updateEvaluationLeaderboardForSubmission(submission);
+  } catch (err) {
+    logger.error('Failed to update leaderboards after submission update', err as any);
+  }
+});
 
 const authMiddleware = new AuthMiddleware(authService);
 
