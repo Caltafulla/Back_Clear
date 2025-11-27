@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../stores/auth-store'
 import { getDashboardStats } from '../services/dashboard'
+import { getMyCourses } from '../services/courses'
 import { CircularProgress, LinearProgress } from '../components/ui/Progress'
 import Badge from '../components/ui/Badge'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -17,6 +18,13 @@ export default function DashboardPage() {
     staleTime: 60000, // Data is fresh for 60 seconds
     refetchInterval: false, // Disable auto-refetch to reduce rate limiting
     retry: false, // Don't retry on errors to avoid rate limiting
+  })
+
+  const { data: myCourses = [], isLoading: isLoadingCourses } = useQuery({
+    queryKey: ['my-courses'],
+    queryFn: getMyCourses,
+    enabled: user?.role === 'STUDENT', // Only fetch for students
+    staleTime: 60000,
   })
 
   const getStatusIcon = (status: Submission['status']) => {
@@ -159,6 +167,49 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* My Courses - Only for Students */}
+      {user?.role === 'STUDENT' && (
+        <div className={styles.myCoursesSection}>
+          <h2 className={styles.sectionTitle}>Mis Cursos</h2>
+          {isLoadingCourses ? (
+            <div className={styles.loadingContainer}>
+              <LoadingSpinner size="md" />
+              <p>Loading courses...</p>
+            </div>
+          ) : myCourses.length === 0 ? (
+            <div className={styles.emptyState}>
+              <span>📚</span>
+              <p>No estás inscrito en ningún curso</p>
+            </div>
+          ) : (
+            <div className={styles.coursesGrid}>
+              {myCourses.map((course: any) => (
+                <div key={course.id} className={styles.courseCard}>
+                  <div className={styles.courseHeader}>
+                    <h3 className={styles.courseName}>{course.name || 'Sin nombre'}</h3>
+                    {course.code && (
+                      <Badge variant="info">{course.code}</Badge>
+                    )}
+                  </div>
+                  <div className={styles.courseDetails}>
+                    <div className={styles.courseDetailItem}>
+                      <span className={styles.courseDetailLabel}>ID:</span>
+                      <span className={styles.courseDetailValue}>{course.id}</span>
+                    </div>
+                    {course.period && (
+                      <div className={styles.courseDetailItem}>
+                        <span className={styles.courseDetailLabel}>Período:</span>
+                        <span className={styles.courseDetailValue}>{course.period}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className={styles.quickActions}>

@@ -101,6 +101,25 @@ export function createCourseRoutes(
 
   /**
    * @swagger
+   * /api/courses/my:
+   *   get:
+   *     summary: Get current student's enrolled courses
+   *     tags: [Courses]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: List of enrolled courses
+   *       401:
+   *         description: Unauthorized
+   */
+  router.get(
+    '/my',
+    ErrorHandler.asyncHandler(courseController.getMyCourses.bind(courseController))
+  );
+
+  /**
+   * @swagger
    * /api/courses/{id}:
    *   get:
    *     summary: Get course by ID

@@ -21,6 +21,7 @@ const Sidebar: React.FC<{ collapsed?: boolean }> = ({ collapsed = false }) => {
       items: [
         { path: '/my-submissions', label: 'My Submissions', icon: '📝' },
         { path: '/active-evaluations', label: 'Active Evaluations', icon: '⏱️' },
+        { path: '/my-courses', label: 'Mis Cursos', icon: '📚' },
       ]
     }
   ]

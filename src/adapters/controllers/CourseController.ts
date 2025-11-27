@@ -140,6 +140,46 @@ export class CourseController {
 
   /**
    * @swagger
+   * /api/courses/my:
+   *   get:
+   *     summary: Get current student's enrolled courses
+   *     tags: [Courses]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: List of enrolled courses
+   *       401:
+   *         description: Unauthorized
+   */
+  async getMyCourses(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+        return;
+      }
+
+      const courses = await this.courseRepository.findByStudentId(userId);
+
+      res.status(200).json({
+        success: true,
+        data: courses
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch student courses'
+      });
+    }
+  }
+
+  /**
+   * @swagger
    * /api/courses/{id}:
    *   get:
    *     summary: Get course by ID

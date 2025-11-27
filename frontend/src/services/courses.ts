@@ -42,3 +42,9 @@ export async function enrollStudentByEmail(courseId: string, email: string) {
   return res.data?.data || {}
 }
 
+export async function getMyCourses() {
+  const res = await api.get('/courses/my')
+  const data = res.data?.data
+  return Array.isArray(data) ? data : data?.courses || []
+}
+
