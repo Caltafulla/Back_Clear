@@ -1,4 +1,4 @@
-import { ILeaderboardRepository } from '../../domain/repositories/ILeaderboardRepository';
+import { ILeaderboardRepository, LeaderboardOptions } from '../../domain/repositories/ILeaderboardRepository';
 import { LeaderboardEntry, ChallengeLeaderboard, CourseLeaderboard, EvaluationLeaderboard } from '../../domain/entities/Leaderboard';
 import { ISubmissionRepository } from '../../domain/repositories/ISubmissionRepository';
 import { IUserRepository } from '../../domain/repositories/IUserRepository';
@@ -18,13 +18,28 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
   ) {}
 
   // Compute challenge leaderboard on demand
-  async getChallengeLeaderboard(challengeId: string, limit: number = 50): Promise<ChallengeLeaderboard> {
+  async getChallengeLeaderboard(challengeId: string, limit: number = 50, options?: LeaderboardOptions): Promise<ChallengeLeaderboard> {
     // If present in cache, return
     const cached = this.challengeCache.get(challengeId);
     if (cached) return { ...cached };
 
     // Build leaderboard
-    const submissions = await this.submissionRepo.findByChallengeId(challengeId);
+    let submissions = await this.submissionRepo.findByChallengeId(challengeId);
+
+    // Apply filters
+    if (options?.language) {
+      submissions = submissions.filter(s => s.language === options.language);
+    }
+    // Exclude evaluation submissions by default
+    if (!options?.includeEvaluationSubmissions) {
+      submissions = submissions.filter(s => !s.evaluationId);
+    }
+    if (options?.from) {
+      submissions = submissions.filter(s => s.createdAt >= options.from!);
+    }
+    if (options?.to) {
+      submissions = submissions.filter(s => s.createdAt <= options.to!);
+    }
 
     // Group best submission per user
     const bestByUser = new Map<string, Submission>();
@@ -51,7 +66,8 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
         totalSubmissions: 1,
         acceptedSubmissions: submission.status === SubmissionStatus.ACCEPTED ? 1 : 0,
         averageTimeMs: submission.timeMsTotal,
-        rank: 0
+        rank: 0,
+        firstSolvedAt: submission.createdAt
       });
     }
 
@@ -59,7 +75,10 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
     entries.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       if (a.averageTimeMs !== b.averageTimeMs) return a.averageTimeMs - b.averageTimeMs;
-      return 0;
+      // Tie-breaker by earliest submission date
+      const aDate = a.firstSolvedAt ? new Date(a.firstSolvedAt).getTime() : Number.MAX_SAFE_INTEGER;
+      const bDate = b.firstSolvedAt ? new Date(b.firstSolvedAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return aDate - bDate;
     });
 
     // Assign ranks and limit
@@ -76,11 +95,25 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
   }
 
   // Compute course leaderboard by summing best submissions per challenge
-  async getCourseLeaderboard(courseId: string, limit: number = 50): Promise<CourseLeaderboard> {
+  async getCourseLeaderboard(courseId: string, limit: number = 50, options?: LeaderboardOptions): Promise<CourseLeaderboard> {
     const cached = this.courseCache.get(courseId);
     if (cached) return { ...cached };
 
-    const submissions = await this.submissionRepo.findByCourseId(courseId);
+    let submissions = await this.submissionRepo.findByCourseId(courseId);
+
+    // Apply filters
+    if (options?.language) {
+      submissions = submissions.filter(s => s.language === options.language);
+    }
+    if (!options?.includeEvaluationSubmissions) {
+      submissions = submissions.filter(s => !s.evaluationId);
+    }
+    if (options?.from) {
+      submissions = submissions.filter(s => s.createdAt >= options.from!);
+    }
+    if (options?.to) {
+      submissions = submissions.filter(s => s.createdAt <= options.to!);
+    }
 
     // Map of user -> challenge -> best submission
     const bestMap: Map<string, Map<string, Submission>> = new Map();
@@ -124,7 +157,8 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
         totalSubmissions: totalSubs,
         acceptedSubmissions: accepted,
         averageTimeMs: totalTime,
-        rank: 0
+        rank: 0,
+        firstSolvedAt: earliest || undefined
       });
     }
 
@@ -132,7 +166,9 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
     entries.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       if (a.averageTimeMs !== b.averageTimeMs) return a.averageTimeMs - b.averageTimeMs;
-      return 0;
+      const aDate = a.firstSolvedAt ? new Date(a.firstSolvedAt).getTime() : Number.MAX_SAFE_INTEGER;
+      const bDate = b.firstSolvedAt ? new Date(b.firstSolvedAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return aDate - bDate;
     });
 
     for (let i = 0; i < entries.length; i++) (entries[i]!).rank = i + 1;
@@ -148,7 +184,7 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
     return { ...result };
   }
 
-  async getEvaluationLeaderboard(evaluationId: string, limit: number = 50) {
+  async getEvaluationLeaderboard(evaluationId: string, limit: number = 50, options?: LeaderboardOptions) {
     const cached = this.evaluationCache.get(evaluationId);
     if (cached) return { ...cached };
 
@@ -180,7 +216,10 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
       = new Map();
 
     for (const challengeId of evaluation.challengeIds) {
-      const subs = await this.submissionRepo.findByChallengeId(challengeId);
+      let subs = await this.submissionRepo.findByChallengeId(challengeId);
+      if (options?.language) {
+        subs = subs.filter(s => s.language === options.language);
+      }
       // Filter by evaluation window if present
       const filtered = subs.filter(s => {
         if (start && s.createdAt < start) return false;
@@ -219,7 +258,9 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
         totalSubmissions: agg.totalChallenges,
         acceptedSubmissions: agg.accepted,
         averageTimeMs: agg.totalTime,
-        rank: 0
+        rank: 0,
+        // For evaluations, use window start as tie-breaker proxy if available
+        firstSolvedAt: start || undefined
       });
     }
 
@@ -227,7 +268,9 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
     entries.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       if (a.averageTimeMs !== b.averageTimeMs) return a.averageTimeMs - b.averageTimeMs;
-      return 0;
+      const aDate = a.firstSolvedAt ? new Date(a.firstSolvedAt).getTime() : Number.MAX_SAFE_INTEGER;
+      const bDate = b.firstSolvedAt ? new Date(b.firstSolvedAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return aDate - bDate;
     });
 
     for (let i = 0; i < entries.length; i++) entries[i]!.rank = i + 1;

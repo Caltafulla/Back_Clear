@@ -10,8 +10,27 @@ export function createLeaderboardRoutes(
 ): Router {
   const router = Router();
 
-  // Apply authentication to all routes
-  router.use(authMiddleware.authenticate);
+  // Public endpoints (competition mode)
+  router.get(
+    '/public/challenge/:id',
+    authMiddleware.optionalAuth,
+    ValidationMiddleware.validateParams(CommonSchemas.id),
+    ErrorHandler.asyncHandler(leaderboardController.getChallengeLeaderboard.bind(leaderboardController))
+  );
+
+  router.get(
+    '/public/course/:id',
+    authMiddleware.optionalAuth,
+    ValidationMiddleware.validateParams(CommonSchemas.id),
+    ErrorHandler.asyncHandler(leaderboardController.getCourseLeaderboard.bind(leaderboardController))
+  );
+
+  router.get(
+    '/public/evaluation/:id',
+    authMiddleware.optionalAuth,
+    ValidationMiddleware.validateParams(CommonSchemas.id),
+    ErrorHandler.asyncHandler(leaderboardController.getEvaluationLeaderboard.bind(leaderboardController))
+  );
 
   /**
    * @swagger
@@ -38,6 +57,7 @@ export function createLeaderboardRoutes(
    */
   router.get(
     '/challenge/:id',
+    authMiddleware.authenticate,
     ValidationMiddleware.validateParams(CommonSchemas.id),
     ErrorHandler.asyncHandler(leaderboardController.getChallengeLeaderboard.bind(leaderboardController))
   );
@@ -67,6 +87,7 @@ export function createLeaderboardRoutes(
    */
   router.get(
     '/course/:id',
+    authMiddleware.authenticate,
     ValidationMiddleware.validateParams(CommonSchemas.id),
     ErrorHandler.asyncHandler(leaderboardController.getCourseLeaderboard.bind(leaderboardController))
   );
@@ -96,6 +117,7 @@ export function createLeaderboardRoutes(
    */
   router.get(
     '/evaluation/:id',
+    authMiddleware.authenticate,
     ValidationMiddleware.validateParams(CommonSchemas.id),
     ErrorHandler.asyncHandler(leaderboardController.getEvaluationLeaderboard.bind(leaderboardController))
   );

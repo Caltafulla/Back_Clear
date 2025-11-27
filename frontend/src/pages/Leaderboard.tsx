@@ -8,7 +8,8 @@ import {
   getEvaluationLeaderboard,
   listCourses,
   listEvaluations,
-  type LeaderboardRow
+  type LeaderboardRow,
+  type LeaderboardFilters
 } from '../services/leaderboard'
 import { useAuthStore } from '../stores/auth-store'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -21,6 +22,10 @@ export default function LeaderboardPage() {
   const user = useAuthStore((state) => state.user)
   const [tab, setTab] = useState<Tab>('challenge')
   const [selectedId, setSelectedId] = useState<string>('')
+  const [language, setLanguage] = useState<LeaderboardFilters['language']>('')
+  const [from, setFrom] = useState<string>('')
+  const [to, setTo] = useState<string>('')
+  const [includeEval, setIncludeEval] = useState<boolean>(false)
 
   const { data: challenges = [], isLoading: loadingChallenges } = useQuery({
     queryKey: ['challenges', 'leaderboard'],
@@ -38,18 +43,23 @@ export default function LeaderboardPage() {
   })
 
   const leaderboardQuery = useQuery<LeaderboardRow[]>({
-    queryKey: ['leaderboard', tab, selectedId],
+    queryKey: ['leaderboard', tab, selectedId, language, from, to, includeEval],
     queryFn: async () => {
       if (!selectedId) return []
       try {
-        if (tab === 'challenge') return await getChallengeLeaderboard(selectedId)
+        const filters: LeaderboardFilters = {
+          language: (language || undefined) as any,
+          from: from || undefined,
+          to: to || undefined,
+          includeEvaluationSubmissions: tab !== 'evaluation' ? includeEval : undefined
+        }
+        if (tab === 'challenge') return await getChallengeLeaderboard(selectedId, 50, filters)
         if (tab === 'course') {
-          console.log('Fetching course leaderboard for courseId:', selectedId)
-          const result = await getCourseLeaderboard(selectedId)
+          const result = await getCourseLeaderboard(selectedId, 50, filters)
           console.log('Course leaderboard result:', result)
           return result
         }
-        return await getEvaluationLeaderboard(selectedId)
+        return await getEvaluationLeaderboard(selectedId, 50, filters)
       } catch (error) {
         console.error('Error fetching leaderboard:', error)
         return []
@@ -63,6 +73,8 @@ export default function LeaderboardPage() {
   useEffect(() => {
     // Reset selection when tab changes
     setSelectedId('')
+    // Keep filters, but reset includeEval for evaluation tab as it doesn't apply
+    if (tab === 'evaluation') setIncludeEval(false)
   }, [tab])
 
   const isLoadingLists = loadingChallenges || loadingCourses || loadingEvaluations
@@ -175,6 +187,58 @@ export default function LeaderboardPage() {
                   </option>
                 ))}
             </select>
+
+            {/* Filters */}
+            <div className={styles.filtersRow}>
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Language</label>
+                <select
+                  value={language || ''}
+                  onChange={(e) => setLanguage((e.target.value || '') as any)}
+                  className={styles.filterControl}
+                >
+                  <option value="">All</option>
+                  <option value="python">Python</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="cpp">C++</option>
+                  <option value="java">Java</option>
+                </select>
+              </div>
+
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>From</label>
+                <input
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className={styles.filterControl}
+                />
+              </div>
+
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>To</label>
+                <input
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className={styles.filterControl}
+                />
+              </div>
+
+              {tab !== 'evaluation' && (
+                <div className={styles.filterGroup} style={{ alignSelf: 'end' }}>
+                  <label className={styles.checkboxLabel}>
+                    <input
+                      type="checkbox"
+                      checked={includeEval}
+                      onChange={(e) => setIncludeEval(e.target.checked)}
+                    />
+                    <span style={{ marginLeft: 6 }}>Include evaluation submissions</span>
+                  </label>
+                </div>
+              )}
+            </div>
+
             {selectedItem && (
               <div className={styles.selectedInfo}>
                 {tab === 'challenge' && (

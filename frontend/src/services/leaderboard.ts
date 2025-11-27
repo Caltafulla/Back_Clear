@@ -9,11 +9,37 @@ export type LeaderboardRow = {
   totalTime?: number
 }
 
-export async function getChallengeLeaderboard(challengeId: string, limit = 50): Promise<LeaderboardRow[]> {
+export type LeaderboardFilters = {
+  language?: 'python' | 'javascript' | 'cpp' | 'java'
+  from?: string // ISO
+  to?: string   // ISO
+  includeEvaluationSubmissions?: boolean
+  publicMode?: boolean
+}
+
+function toQuery(params: Record<string, any>): string {
+  const usp = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue
+    usp.append(k, String(v))
+  }
+  const s = usp.toString()
+  return s ? `?${s}` : ''
+}
+
+export async function getChallengeLeaderboard(challengeId: string, limit = 50, filters?: LeaderboardFilters): Promise<LeaderboardRow[]> {
   if (!challengeId) return []
-  const res = await requestQueue.add(() => 
-    api.get(`/leaderboard/challenge/${challengeId}?limit=${limit}`)
-  )
+  const path = filters?.publicMode ? `/leaderboard/public/challenge/${challengeId}` : `/leaderboard/challenge/${challengeId}`
+  const res = await requestQueue.add(() => {
+    const q = toQuery({
+      limit,
+      language: filters?.language,
+      from: filters?.from,
+      to: filters?.to,
+      includeEvaluationSubmissions: filters?.includeEvaluationSubmissions
+    })
+    return api.get(`${path}${q}`)
+  })
   const rankings = res.data?.data?.rankings || []
   return rankings.map((r: any) => ({
     rank: r.rank ?? 0,
@@ -24,17 +50,24 @@ export async function getChallengeLeaderboard(challengeId: string, limit = 50): 
   }))
 }
 
-export async function getCourseLeaderboard(courseId: string, limit = 50): Promise<LeaderboardRow[]> {
+export async function getCourseLeaderboard(courseId: string, limit = 50, filters?: LeaderboardFilters): Promise<LeaderboardRow[]> {
   if (!courseId) {
     console.warn('getCourseLeaderboard: No courseId provided')
     return []
   }
   
   try {
-    console.log('getCourseLeaderboard: Fetching for courseId:', courseId, 'limit:', limit)
-    const res = await requestQueue.add(() => 
-      api.get(`/leaderboard/course/${courseId}?limit=${limit}`)
-    )
+    const path = filters?.publicMode ? `/leaderboard/public/course/${courseId}` : `/leaderboard/course/${courseId}`
+    const res = await requestQueue.add(() => {
+      const q = toQuery({
+        limit,
+        language: filters?.language,
+        from: filters?.from,
+        to: filters?.to,
+        includeEvaluationSubmissions: filters?.includeEvaluationSubmissions
+      })
+      return api.get(`${path}${q}`)
+    })
     
     console.log('getCourseLeaderboard: Response received:', {
       status: res.status,
@@ -109,11 +142,18 @@ export async function getCourseLeaderboard(courseId: string, limit = 50): Promis
   }
 }
 
-export async function getEvaluationLeaderboard(evaluationId: string, limit = 50): Promise<LeaderboardRow[]> {
+export async function getEvaluationLeaderboard(evaluationId: string, limit = 50, filters?: LeaderboardFilters): Promise<LeaderboardRow[]> {
   if (!evaluationId) return []
-  const res = await requestQueue.add(() => 
-    api.get(`/leaderboard/evaluation/${evaluationId}?limit=${limit}`)
-  )
+  const path = filters?.publicMode ? `/leaderboard/public/evaluation/${evaluationId}` : `/leaderboard/evaluation/${evaluationId}`
+  const res = await requestQueue.add(() => {
+    const q = toQuery({
+      limit,
+      language: filters?.language,
+      from: filters?.from,
+      to: filters?.to
+    })
+    return api.get(`${path}${q}`)
+  })
   const entries = res.data?.data?.entries || []
   return entries.map((e: any) => ({
     rank: e.rank ?? 0,

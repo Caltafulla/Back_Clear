@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { ILeaderboardRepository } from '../../domain/repositories/ILeaderboardRepository';
+import { ILeaderboardRepository, LeaderboardOptions } from '../../domain/repositories/ILeaderboardRepository';
+import { ProgrammingLanguage } from '../../domain/entities/Submission';
 
 export class LeaderboardController {
   constructor(private leaderboardRepository: ILeaderboardRepository) {}
@@ -30,7 +31,7 @@ export class LeaderboardController {
   async getChallengeLeaderboard(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { limit = 50 } = req.query;
+      const { limit = 50, language, from, to, includeEvaluationSubmissions } = req.query as any;
 
       if (!id) {
         res.status(400).json({
@@ -40,9 +41,26 @@ export class LeaderboardController {
         return;
       }
 
+      const options: LeaderboardOptions = {};
+      if (typeof language === 'string' && ['python','javascript','cpp','java'].includes(language)) {
+        options.language = language as ProgrammingLanguage;
+      }
+      if (typeof includeEvaluationSubmissions === 'string') {
+        options.includeEvaluationSubmissions = includeEvaluationSubmissions === 'true';
+      }
+      if (typeof from === 'string') {
+        const d = new Date(from);
+        if (!isNaN(d.getTime())) options.from = d;
+      }
+      if (typeof to === 'string') {
+        const d = new Date(to);
+        if (!isNaN(d.getTime())) options.to = d;
+      }
+
       const leaderboard = await this.leaderboardRepository.getChallengeLeaderboard(
         id,
-        parseInt(limit as string)
+        parseInt(limit as string),
+        options
       );
 
       // Format response to requested structure
@@ -98,7 +116,7 @@ export class LeaderboardController {
   async getCourseLeaderboard(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { limit = 50 } = req.query;
+      const { limit = 50, language, from, to, includeEvaluationSubmissions } = req.query as any;
 
       if (!id) {
         res.status(400).json({
@@ -108,9 +126,26 @@ export class LeaderboardController {
         return;
       }
 
+      const options: LeaderboardOptions = {};
+      if (typeof language === 'string' && ['python','javascript','cpp','java'].includes(language)) {
+        options.language = language as ProgrammingLanguage;
+      }
+      if (typeof includeEvaluationSubmissions === 'string') {
+        options.includeEvaluationSubmissions = includeEvaluationSubmissions === 'true';
+      }
+      if (typeof from === 'string') {
+        const d = new Date(from);
+        if (!isNaN(d.getTime())) options.from = d;
+      }
+      if (typeof to === 'string') {
+        const d = new Date(to);
+        if (!isNaN(d.getTime())) options.to = d;
+      }
+
       const leaderboard = await this.leaderboardRepository.getCourseLeaderboard(
         id,
-        parseInt(limit as string)
+        parseInt(limit as string),
+        options
       );
 
       const rankings = leaderboard.entries.map(e => ({
@@ -156,7 +191,7 @@ export class LeaderboardController {
   async getEvaluationLeaderboard(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { limit = 50 } = req.query;
+      const { limit = 50, language, from, to } = req.query as any;
 
       if (!id) {
         res.status(400).json({
@@ -166,9 +201,23 @@ export class LeaderboardController {
         return;
       }
 
+      const options: LeaderboardOptions = {};
+      if (typeof language === 'string' && ['python','javascript','cpp','java'].includes(language)) {
+        options.language = language as ProgrammingLanguage;
+      }
+      if (typeof from === 'string') {
+        const d = new Date(from);
+        if (!isNaN(d.getTime())) options.from = d;
+      }
+      if (typeof to === 'string') {
+        const d = new Date(to);
+        if (!isNaN(d.getTime())) options.to = d;
+      }
+
       const leaderboard = await this.leaderboardRepository.getEvaluationLeaderboard(
         id,
-        parseInt(limit as string)
+        parseInt(limit as string),
+        options
       );
 
       res.status(200).json({
