@@ -39,6 +39,7 @@ export class ChallengeController {
   async getChallenges(req: Request, res: Response): Promise<void> {
     try {
       const { courseId, status, difficulty, tags, limit = 50, offset = 0 } = req.query;
+      const requesterRole = (req as any).user?.role as string | undefined;
 
       let challenges;
 
@@ -58,10 +59,18 @@ export class ChallengeController {
         );
       }
 
-      res.status(200).json({
-        success: true,
-        data: challenges
-      });
+      // If requester is STUDENT, only expose published challenges and hide hidden test cases
+      if (requesterRole === 'STUDENT') {
+        const published = (challenges || []).filter((c: any) => c.status === ChallengeStatus.PUBLISHED);
+        const sanitized = published.map((c: any) => ({
+          ...c,
+          testCases: Array.isArray(c.testCases) ? c.testCases.filter((tc: any) => !tc.isHidden) : []
+        }));
+        res.status(200).json({ success: true, data: sanitized });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: challenges });
     } catch (error) {
       res.status(500).json({
         success: false,
@@ -73,6 +82,7 @@ export class ChallengeController {
   async getChallengeById(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
+      const requesterRole = (req as any).user?.role as string | undefined;
       if (!id) {
         res.status(400).json({
           success: false,
@@ -90,10 +100,21 @@ export class ChallengeController {
         return;
       }
 
-      res.status(200).json({
-        success: true,
-        data: challenge
-      });
+      // Students can only access published challenges and must not see hidden test cases
+      if (requesterRole === 'STUDENT') {
+        if (challenge.status !== ChallengeStatus.PUBLISHED) {
+          res.status(403).json({ success: false, message: 'Challenge not available' });
+          return;
+        }
+        const sanitized = {
+          ...challenge,
+          testCases: Array.isArray(challenge.testCases) ? challenge.testCases.filter(tc => !tc.isHidden) : []
+        };
+        res.status(200).json({ success: true, data: sanitized });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: challenge });
     } catch (error) {
       res.status(500).json({
         success: false,

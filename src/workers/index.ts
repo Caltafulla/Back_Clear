@@ -13,6 +13,7 @@ import { RunnerService } from '../frameworks/RunnerService';
 import { ComputedLeaderboardRepository } from '../adapters/repositories/ComputedLeaderboardRepository';
 import { MongoUserRepository } from '../adapters/repositories/MongoUserRepository';
 import { MockEvaluationRepository } from '../adapters/repositories/MockEvaluationRepository';
+import { MongoChallengeRepository } from '../adapters/repositories/MongoChallengeRepository';
 
 class Worker {
   private submissionQueue: Queue.Queue;
@@ -29,11 +30,13 @@ class Worker {
     const userRepo = new MongoUserRepository();
     const evaluationRepo = new MockEvaluationRepository();
     const leaderboardRepository = new ComputedLeaderboardRepository(submissionRepository, userRepo, evaluationRepo) as ILeaderboardRepository;
+    const challengeRepository = new MongoChallengeRepository();
 
     this.processSubmissionUseCase = new ProcessSubmissionUseCase(
       submissionRepository,
       runnerService,
-      leaderboardRepository
+      leaderboardRepository,
+      challengeRepository
     );
 
     this.setupQueue();

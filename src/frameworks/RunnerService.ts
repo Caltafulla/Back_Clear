@@ -2,6 +2,9 @@ import { ContainerCodeExecutor } from './ContainerCodeExecutor';
 import { IRunnerService, RunnerConfig, RunnerResult } from '../domain/services/IRunnerService';
 import { ProgrammingLanguage, SubmissionStatus } from '../domain/entities/Submission';
 import { Logger } from './Logger';
+import { PythonRunner } from '../runners/python-runner';
+import { CppRunner } from '../runners/cpp-runner';
+import { JavaRunner } from '../runners/java-runner';
 
 /**
  * RunnerService: Coordinador principal de ejecución de código
@@ -16,6 +19,9 @@ import { Logger } from './Logger';
 export class RunnerService implements IRunnerService {
   private logger: Logger;
   private containerExecutor: ContainerCodeExecutor;
+  private pythonRunner: PythonRunner;
+  private cppRunner: CppRunner;
+  private javaRunner: JavaRunner;
   private readonly supportedLanguages: ProgrammingLanguage[] = [
     ProgrammingLanguage.PYTHON,
     ProgrammingLanguage.JAVASCRIPT,
@@ -26,6 +32,9 @@ export class RunnerService implements IRunnerService {
   constructor() {
     this.logger = new Logger('RunnerService');
     this.containerExecutor = new ContainerCodeExecutor();
+    this.pythonRunner = new PythonRunner();
+    this.cppRunner = new CppRunner();
+    this.javaRunner = new JavaRunner();
   }
 
   /**
@@ -54,11 +63,11 @@ export class RunnerService implements IRunnerService {
       // Para otros lenguajes, usar ejecutores específicos (a implementar)
       switch (config.language) {
         case ProgrammingLanguage.PYTHON:
-          return await this.executePython(config);
+          return await this.pythonRunner.execute(config);
         case ProgrammingLanguage.CPP:
-          return await this.executeCpp(config);
+          return await this.cppRunner.execute(config);
         case ProgrammingLanguage.JAVA:
-          return await this.executeJava(config);
+          return await this.javaRunner.execute(config);
         default:
           return {
             status: SubmissionStatus.COMPILATION_ERROR,

@@ -1,13 +1,15 @@
 import { ISubmissionRepository } from '../../../domain/repositories/ISubmissionRepository';
 import { IRunnerService } from '../../../domain/services/IRunnerService';
 import { ILeaderboardRepository } from '../../../domain/repositories/ILeaderboardRepository';
+import { IChallengeRepository } from '../../../domain/repositories/IChallengeRepository';
 import { Submission, SubmissionResult, SubmissionStatus } from '../../../domain/entities/Submission';
 
 export class ProcessSubmissionUseCase {
   constructor(
     private submissionRepository: ISubmissionRepository,
     private runnerService: IRunnerService,
-    private leaderboardRepository: ILeaderboardRepository
+    private leaderboardRepository: ILeaderboardRepository,
+    private challengeRepository: IChallengeRepository
   ) {}
 
   async execute(submissionId: string): Promise<SubmissionResult> {
@@ -23,13 +25,23 @@ export class ProcessSubmissionUseCase {
     });
 
     try {
-      // Execute code using runner service
+      // Load challenge to obtain time/memory limits and test cases
+      const challenge = await this.challengeRepository.findById(submission.challengeId);
+      if (!challenge) {
+        throw new Error('Challenge not found for submission');
+      }
+
       const runnerResult = await this.runnerService.executeCode({
         language: submission.language,
         code: submission.code,
-        timeLimit: 1500, // Default time limit, should come from challenge
-        memoryLimit: 256, // Default memory limit, should come from challenge
-        testCases: [] // Should come from challenge test cases
+        timeLimit: challenge.timeLimit || 1500,
+        memoryLimit: challenge.memoryLimit || 256,
+        testCases: (challenge.testCases || []).map(tc => ({
+          id: String(tc.id),
+          input: tc.input,
+          expectedOutput: tc.expectedOutput,
+          isHidden: !!tc.isHidden,
+        }))
       });
 
       // Update submission with results

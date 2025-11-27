@@ -1,21 +1,31 @@
 import { spawn } from 'child_process';
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
 import { RunnerConfig, RunnerResult } from '../domain/services/IRunnerService';
 import { SubmissionStatus } from '../domain/entities/Submission';
 
 export class PythonRunner {
   async execute(config: RunnerConfig): Promise<RunnerResult> {
-    const testCaseResults = [];
+    const testCaseResults: Array<{
+      caseId: string;
+      status: string;
+      timeMs: number;
+      memoryKb: number;
+      actualOutput?: string;
+      expectedOutput?: string;
+      errorMessage?: string;
+    }> = [];
     let totalTime = 0;
     let totalMemory = 0;
     let passedTests = 0;
 
     for (const testCase of config.testCases) {
-      const result = await this.runTestCase(config.code, testCase, config.timeLimit);
+      const result = await this.runTestCase(config, testCase);
       testCaseResults.push(result);
       totalTime += result.timeMs;
       totalMemory += result.memoryKb;
-      
-      if (result.status === 'OK') {
+      if (result.status === SubmissionStatus.ACCEPTED) {
         passedTests++;
       }
     }
@@ -32,58 +42,95 @@ export class PythonRunner {
     };
   }
 
-  private async runTestCase(code: string, testCase: any, timeLimit: number): Promise<any> {
+  private async runTestCase(config: RunnerConfig, testCase: any): Promise<any> {
+    const timeLimit = Math.max(100, config.timeLimit || 1500);
+    const memoryLimitMb = Math.max(64, config.memoryLimit || 512);
+
     return new Promise((resolve) => {
       const startTime = Date.now();
-      
-      // Create a temporary Python file
-      const fs = require('fs');
-      const path = require('path');
-      const tempDir = '/tmp';
-      const fileName = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.py`;
-      const filePath = path.join(tempDir, fileName);
-      
+
+      // Create a temporary Python file (wrapped to read stdin and call main)
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'py-run-'));
+      const srcPath = path.join(tmpDir, 'code.py');
+
+      const wrappedCode = [
+        'import sys',
+        '# --- user code ---',
+        config.code,
+        '# --- runner wrapper ---',
+        'if __name__ == "__main__":',
+        '    data = sys.stdin.read()',
+        '    try:',
+        '        out = main(data.strip())',
+        '    except Exception as e:',
+        '        sys.stderr.write(f"__EXC__:{type(e).__name__}:{str(e)}")',
+        '        sys.exit(1)',
+        '    if out is None:',
+        '        out = ""',
+        '    sys.stdout.write(str(out))',
+      ].join('\n');
+
       try {
-        fs.writeFileSync(filePath, code);
-        
-        // Run Python code in Docker container for isolation
-        const docker = spawn('docker', [
+        fs.writeFileSync(srcPath, wrappedCode, 'utf8');
+
+        const containerName = `py-run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+        const args = [
           'run',
           '--rm',
+          '--name', containerName,
           '--network', 'none',
           '--cpus', '0.5',
-          '--memory', '512m',
+          '--memory', `${memoryLimitMb}m`,
+          '--memory-swap', `${memoryLimitMb}m`,
+          '--pids-limit', '10',
           '--read-only',
-          '--tmpfs', '/tmp:rw,size=100m',
-          '--timeout', Math.ceil(timeLimit / 1000).toString(),
-          'python:3.9-alpine',
-          'python3', '-c', code
-        ], {
-          stdio: ['pipe', 'pipe', 'pipe']
-        });
+          '--tmpfs', '/tmp:rw,size=100m,noexec',
+          '--tmpfs', '/run:rw,size=50m,noexec',
+          '--cap-drop', 'ALL',
+          '--security-opt', 'no-new-privileges',
+          '--volume', `${srcPath}:/code.py:ro`,
+          'python:3.10-alpine',
+          'python', '/code.py'
+        ];
+
+        const docker = spawn('docker', args, { stdio: ['pipe', 'pipe', 'pipe'] });
 
         let output = '';
         let error = '';
+        let killedByTimeout = false;
 
-        docker.stdout.on('data', (data) => {
+        docker.stdout?.on('data', (data) => {
           output += data.toString();
         });
 
-        docker.stderr.on('data', (data) => {
+        docker.stderr?.on('data', (data) => {
           error += data.toString();
         });
 
+        const timeoutHandle = setTimeout(() => {
+          killedByTimeout = true;
+          docker.kill('SIGKILL');
+        }, timeLimit + 500);
+
         docker.on('close', (code) => {
+          clearTimeout(timeoutHandle);
           const endTime = Date.now();
           const executionTime = endTime - startTime;
-          
-          // Clean up
+
           try {
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-            }
-          } catch (e) {
-            // Ignore cleanup errors
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+          } catch {}
+
+          if (killedByTimeout) {
+            resolve({
+              caseId: testCase.id,
+              status: SubmissionStatus.TIME_LIMIT_EXCEEDED,
+              timeMs: timeLimit,
+              memoryKb: 0,
+              errorMessage: 'Time limit exceeded'
+            });
+            return;
           }
 
           if (code !== 0) {
@@ -92,25 +139,31 @@ export class PythonRunner {
               status: SubmissionStatus.RUNTIME_ERROR,
               timeMs: executionTime,
               memoryKb: 0,
-              errorMessage: error || 'Process exited with non-zero code'
+              errorMessage: error || 'Non-zero exit code'
             });
           } else {
-            const isCorrect = output.trim() === testCase.expectedOutput.trim();
+            const actual = (output || '').trim();
+            const expected = (testCase.expectedOutput || '').trim();
+            const ok = actual === expected;
             resolve({
               caseId: testCase.id,
-              status: isCorrect ? 'OK' : SubmissionStatus.WRONG_ANSWER,
+              status: ok ? SubmissionStatus.ACCEPTED : SubmissionStatus.WRONG_ANSWER,
               timeMs: executionTime,
               memoryKb: 0,
-              actualOutput: output.trim(),
-              expectedOutput: testCase.expectedOutput.trim()
+              actualOutput: actual,
+              expectedOutput: expected
             });
           }
         });
 
         docker.on('error', (err) => {
+          clearTimeout(timeoutHandle);
           const endTime = Date.now();
           const executionTime = endTime - startTime;
-          
+          try {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+          } catch {}
+
           resolve({
             caseId: testCase.id,
             status: SubmissionStatus.RUNTIME_ERROR,
@@ -120,29 +173,19 @@ export class PythonRunner {
           });
         });
 
-        // Send input to the program
-        docker.stdin.write(testCase.input);
-        docker.stdin.end();
-
-        // Timeout handling
-        setTimeout(() => {
-          docker.kill('SIGKILL');
-          resolve({
-            caseId: testCase.id,
-            status: SubmissionStatus.TIME_LIMIT_EXCEEDED,
-            timeMs: timeLimit,
-            memoryKb: 0,
-            errorMessage: 'Time limit exceeded'
-          });
-        }, timeLimit);
-
-      } catch (error) {
+        // Send input
+        docker.stdin?.write(testCase.input ?? '');
+        docker.stdin?.end();
+      } catch (err: any) {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch {}
         resolve({
           caseId: testCase.id,
           status: SubmissionStatus.RUNTIME_ERROR,
           timeMs: 0,
           memoryKb: 0,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+          errorMessage: err?.message || 'Unknown error'
         });
       }
     });

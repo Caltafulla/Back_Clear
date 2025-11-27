@@ -199,6 +199,7 @@ export function createChallengeRoutes(
   router.put(
     '/:id',
     ValidationMiddleware.validateParams(CommonSchemas.id),
+    authMiddleware.authorize(UserRole.ADMIN, UserRole.PROFESSOR),
     ValidationMiddleware.validate(ChallengeSchemas.update),
     ErrorHandler.asyncHandler(challengeController.updateChallenge.bind(challengeController))
   );

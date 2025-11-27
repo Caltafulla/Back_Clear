@@ -1,182 +1,131 @@
 import { spawn } from 'child_process';
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
 import { RunnerConfig, RunnerResult } from '../domain/services/IRunnerService';
 import { SubmissionStatus } from '../domain/entities/Submission';
 
 export class JavaRunner {
   async execute(config: RunnerConfig): Promise<RunnerResult> {
-    const testCaseResults = [];
+    const results: Array<any> = [];
     let totalTime = 0;
-    let totalMemory = 0;
-    let passedTests = 0;
+    let totalMem = 0;
+    let passed = 0;
 
-    for (const testCase of config.testCases) {
-      const result = await this.runTestCase(config.code, testCase, config.timeLimit);
-      testCaseResults.push(result);
-      totalTime += result.timeMs;
-      totalMemory += result.memoryKb;
-      
-      if (result.status === 'OK') {
-        passedTests++;
-      }
+    for (const tc of config.testCases) {
+      const r = await this.runTestCase(config, tc);
+      results.push(r);
+      totalTime += r.timeMs;
+      totalMem += r.memoryKb;
+      if (r.status === SubmissionStatus.ACCEPTED) passed++;
     }
 
-    const score = config.testCases.length > 0 ? (passedTests / config.testCases.length) * 100 : 0;
-    const status = score === 100 ? SubmissionStatus.ACCEPTED : SubmissionStatus.WRONG_ANSWER;
-
+    const score = config.testCases.length ? (passed / config.testCases.length) * 100 : 0;
     return {
-      status,
+      status: score === 100 ? SubmissionStatus.ACCEPTED : SubmissionStatus.WRONG_ANSWER,
       score,
       timeMsTotal: totalTime,
-      memoryKbTotal: totalMemory,
-      testCaseResults
+      memoryKbTotal: totalMem,
+      testCaseResults: results
     };
   }
 
-  private async runTestCase(code: string, testCase: any, timeLimit: number): Promise<any> {
-    return new Promise((resolve) => {
-      const startTime = Date.now();
-      
-      // Create a temporary Java file
-      const fs = require('fs');
-      const path = require('path');
-      const tempDir = '/tmp';
-      const fileName = `Solution_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.java`;
-      const className = `Solution_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const filePath = path.join(tempDir, fileName);
-      
-      try {
-        // Wrap the code with necessary imports and main method
-        const wrappedCode = `
-import java.util.Scanner;
+  private async runTestCase(config: RunnerConfig, testCase: any): Promise<any> {
+    const timeLimit = Math.max(100, config.timeLimit || 1500);
+    const memoryLimitMb = Math.max(64, config.memoryLimit || 512);
 
-public class ${className} {
-    ${code}
-    
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String input = scanner.nextLine();
-        System.out.println(main(input));
-        scanner.close();
-    }
-}
-`;
-        
-        fs.writeFileSync(filePath, wrappedCode);
-        
-        // Compile and run Java code in Docker container for isolation
-        const docker = spawn('docker', [
-          'run',
-          '--rm',
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'java-run-'));
+      const srcPath = path.join(tmpDir, 'Runner.java');
+
+      const wrapped = [
+        'import java.util.*;',
+        'public class Runner {',
+        '  // --- user code ---',
+        config.code,
+        '  // Expect a static method: String solve(String input)',
+        '  public static void main(String[] args) throws Exception {',
+        '    Scanner sc = new Scanner(System.in).useDelimiter("\\\\A");',
+        '    String input = sc.hasNext() ? sc.next() : "";',
+        '    try {',
+        '      String out = solve(input);',
+        '      System.out.print(out == null ? "" : out);',
+        '    } catch (Exception e) {',
+        '      System.err.print("__EXC__:" + e.getClass().getSimpleName() + ":" + e.getMessage());',
+        '      System.exit(1);',
+        '    }',
+        '  }',
+        '}'
+      ].join('\n');
+
+      try {
+        fs.writeFileSync(srcPath, wrapped, 'utf8');
+
+        const containerName = `java-run-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+        const args = [
+          'run', '--rm', '--name', containerName,
           '--network', 'none',
           '--cpus', '0.5',
-          '--memory', '512m',
+          '--memory', `${memoryLimitMb}m`,
+          '--memory-swap', `${memoryLimitMb}m`,
+          '--pids-limit', '10',
           '--read-only',
-          '--tmpfs', '/tmp:rw,size=100m',
-          '--timeout', Math.ceil(timeLimit / 1000).toString(),
-          'openjdk:11-jdk-alpine',
-          'sh', '-c', `
-            cd /tmp &&
-            javac ${fileName} &&
-            echo "${testCase.input}" | java ${className}
-          `
-        ], {
-          stdio: ['pipe', 'pipe', 'pipe']
-        });
+          '--tmpfs', '/tmp:rw,size=100m,noexec',
+          '--tmpfs', '/run:rw,size=50m,noexec',
+          '--cap-drop', 'ALL',
+          '--security-opt', 'no-new-privileges',
+          '--volume', `${srcPath}:/work/Runner.java:ro`,
+          'openjdk:17-alpine',
+          'sh', '-lc',
+          `cp /work/Runner.java /tmp/Runner.java && cd /tmp && javac Runner.java 2>/tmp/err && timeout ${Math.ceil(timeLimit/1000)}s java Runner`
+        ];
 
-        let output = '';
-        let error = '';
+        const proc = spawn('docker', args, { stdio: ['pipe', 'pipe', 'pipe'] });
+        let out = ''; let err = ''; let killed = false;
+        proc.stdout?.on('data', d => out += d.toString());
+        proc.stderr?.on('data', d => err += d.toString());
 
-        docker.stdout.on('data', (data) => {
-          output += data.toString();
-        });
+        const killTimer = setTimeout(() => { killed = true; proc.kill('SIGKILL'); }, timeLimit + 500);
 
-        docker.stderr.on('data', (data) => {
-          error += data.toString();
-        });
+        proc.on('close', (code) => {
+          clearTimeout(killTimer);
+          const elapsed = Date.now() - start;
+          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
 
-        docker.on('close', (code) => {
-          const endTime = Date.now();
-          const executionTime = endTime - startTime;
-          
-          // Clean up
-          try {
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-            }
-            // Clean up compiled .class files
-            const classFile = filePath.replace('.java', '.class');
-            if (fs.existsSync(classFile)) {
-              fs.unlinkSync(classFile);
-            }
-          } catch (e) {
-            // Ignore cleanup errors
+          if (killed) {
+            resolve({ caseId: testCase.id, status: SubmissionStatus.TIME_LIMIT_EXCEEDED, timeMs: timeLimit, memoryKb: 0, errorMessage: 'Time limit exceeded' });
+            return;
           }
-
           if (code !== 0) {
-            // Check if it's a compilation error
-            if (error.includes('error:') || error.includes('Error:') || error.includes('compilation failed')) {
-              resolve({
-                caseId: testCase.id,
-                status: SubmissionStatus.COMPILATION_ERROR,
-                timeMs: executionTime,
-                memoryKb: 0,
-                errorMessage: error
-              });
-            } else {
-              resolve({
-                caseId: testCase.id,
-                status: SubmissionStatus.RUNTIME_ERROR,
-                timeMs: executionTime,
-                memoryKb: 0,
-                errorMessage: error || 'Process exited with non-zero code'
-              });
-            }
-          } else {
-            const isCorrect = output.trim() === testCase.expectedOutput.trim();
             resolve({
               caseId: testCase.id,
-              status: isCorrect ? 'OK' : SubmissionStatus.WRONG_ANSWER,
-              timeMs: executionTime,
+              status: err.includes('error:') ? SubmissionStatus.COMPILATION_ERROR : SubmissionStatus.RUNTIME_ERROR,
+              timeMs: elapsed,
               memoryKb: 0,
-              actualOutput: output.trim(),
-              expectedOutput: testCase.expectedOutput.trim()
+              errorMessage: err || 'Non-zero exit code'
             });
+          } else {
+            const actual = (out || '').trim();
+            const expected = (testCase.expectedOutput || '').trim();
+            const ok = actual === expected;
+            resolve({ caseId: testCase.id, status: ok ? SubmissionStatus.ACCEPTED : SubmissionStatus.WRONG_ANSWER, timeMs: elapsed, memoryKb: 0, actualOutput: actual, expectedOutput: expected });
           }
         });
 
-        docker.on('error', (err) => {
-          const endTime = Date.now();
-          const executionTime = endTime - startTime;
-          
-          resolve({
-            caseId: testCase.id,
-            status: SubmissionStatus.RUNTIME_ERROR,
-            timeMs: executionTime,
-            memoryKb: 0,
-            errorMessage: err.message
-          });
+        proc.on('error', (e) => {
+          clearTimeout(killTimer);
+          const elapsed = Date.now() - start;
+          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+          resolve({ caseId: testCase.id, status: SubmissionStatus.RUNTIME_ERROR, timeMs: elapsed, memoryKb: 0, errorMessage: e.message });
         });
 
-        // Timeout handling
-        setTimeout(() => {
-          docker.kill('SIGKILL');
-          resolve({
-            caseId: testCase.id,
-            status: SubmissionStatus.TIME_LIMIT_EXCEEDED,
-            timeMs: timeLimit,
-            memoryKb: 0,
-            errorMessage: 'Time limit exceeded'
-          });
-        }, timeLimit);
-
-      } catch (error) {
-        resolve({
-          caseId: testCase.id,
-          status: SubmissionStatus.RUNTIME_ERROR,
-          timeMs: 0,
-          memoryKb: 0,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error'
-        });
+        // feed stdin
+        proc.stdin?.write(testCase.input ?? '');
+        proc.stdin?.end();
+      } catch (e: any) {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+        resolve({ caseId: testCase.id, status: SubmissionStatus.RUNTIME_ERROR, timeMs: 0, memoryKb: 0, errorMessage: e?.message || 'Unknown error' });
       }
     });
   }

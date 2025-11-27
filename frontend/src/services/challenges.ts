@@ -45,7 +45,9 @@ function normalizeChallenge(challenge: any): Challenge {
     memoryLimit: challenge.memoryLimit ?? 256,
     status: normalizeStatus(challenge.status || 'DRAFT'),
     testCases: Array.isArray(challenge.testCases)
-      ? challenge.testCases.map((tc: any) => ({
+      ? challenge.testCases
+          .filter((tc: any) => !tc?.isHidden) // never show hidden cases in UI
+          .map((tc: any) => ({
           input: tc.input,
           output: tc.expectedOutput || tc.output || '',
         }))
