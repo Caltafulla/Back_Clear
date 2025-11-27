@@ -1,22 +1,23 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { generateChallengeIdeas, generateTestCases, validateTestCase, type GeneratedChallengeIdea, type GeneratedTestCase } from '../services/assistant'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import styles from '../styles/AIAssistant.module.css'
 
 export default function AIAssistantPage() {
-  const [topic, setTopic] = React.useState('')
-  const [ideaCount, setIdeaCount] = React.useState(3)
-  const [ideas, setIdeas] = React.useState<GeneratedChallengeIdea[]>([])
-  const [loadingIdeas, setLoadingIdeas] = React.useState(false)
-  const [ideasError, setIdeasError] = React.useState<string | null>(null)
+  const [topic, setTopic] = useState('')
+  const [ideaCount, setIdeaCount] = useState(3)
+  const [ideas, setIdeas] = useState<GeneratedChallengeIdea[]>([])
+  const [loadingIdeas, setLoadingIdeas] = useState(false)
+  const [ideasError, setIdeasError] = useState<string | null>(null)
 
-  const [description, setDescription] = React.useState('')
-  const [caseCount, setCaseCount] = React.useState(5)
-  const [testCases, setTestCases] = React.useState<GeneratedTestCase[]>([])
-  const [loadingCases, setLoadingCases] = React.useState(false)
-  const [casesError, setCasesError] = React.useState<string | null>(null)
+  const [description, setDescription] = useState('')
+  const [caseCount, setCaseCount] = useState(5)
+  const [testCases, setTestCases] = useState<GeneratedTestCase[]>([])
+  const [loadingCases, setLoadingCases] = useState(false)
+  const [casesError, setCasesError] = useState<string | null>(null)
 
-  const [validationResult, setValidationResult] = React.useState<string | null>(null)
-  const [validating, setValidating] = React.useState(false)
+  const [validationResult, setValidationResult] = useState<string | null>(null)
+  const [validating, setValidating] = useState(false)
 
   async function onGenerateIdeas(e: React.FormEvent) {
     e.preventDefault()
@@ -66,114 +67,213 @@ export default function AIAssistantPage() {
     navigator.clipboard?.writeText(text).catch(() => {})
   }
 
-  return (
-    <div style={{ padding: 24, display: 'grid', gap: 20 }}>
-      <h1 style={{ margin: 0 }}>AI Assistant</h1>
-      <p style={{ margin: '4px 0 16px', color: 'var(--gray-700)' }}>
-        Use AI to draft challenge ideas and initial test cases. Always review outputs before publishing.
-      </p>
+  const getValidationClass = () => {
+    if (!validationResult) return ''
+    if (validationResult.includes('consistent')) return styles.validationSuccess
+    if (validationResult.includes('failed')) return styles.validationError
+    return styles.validationInfo
+  }
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        <div style={{ border: '1px solid var(--gray-300)', borderRadius: 8, padding: 16 }}>
-          <h2 style={{ margin: '0 0 12px' }}>Generate Challenge Ideas</h2>
-          <form onSubmit={onGenerateIdeas} style={{ display: 'grid', gap: 12 }}>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span>Topic or category</span>
+  return (
+    <div className={styles.aiAssistant}>
+      <div className={styles.header}>
+        <h1 className={styles.title}>AI Assistant</h1>
+        <p className={styles.subtitle}>
+          Use AI to draft challenge ideas and initial test cases. Always review outputs before publishing.
+        </p>
+      </div>
+
+      <div className={styles.toolsGrid}>
+        {/* Generate Challenge Ideas Card */}
+        <div className={styles.toolCard}>
+          <div className={styles.toolHeader}>
+            <span className={styles.toolIcon}>💡</span>
+            <div>
+              <h2 className={styles.toolTitle}>Generate Challenge Ideas</h2>
+              <p className={styles.toolDescription}>
+                Get AI-generated challenge ideas based on a topic or category
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={onGenerateIdeas} className={styles.form}>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Topic or Category *</label>
               <input
+                type="text"
+                className={styles.input}
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder='e.g. "Árboles binarios", "Búsqueda binaria", "Ordenamiento"'
               />
-            </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span>How many ideas?</span>
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Number of Ideas</label>
               <input
                 type="number"
+                className={styles.input}
                 min={1}
                 max={10}
                 value={ideaCount}
                 onChange={(e) => setIdeaCount(Number(e.target.value))}
               />
-            </label>
-            <button type="submit" className="btn btn-primary" disabled={!topic.trim() || loadingIdeas}>
-              {loadingIdeas ? <><LoadingSpinner size="sm" /> <span style={{ marginLeft: 8 }}>Generating...</span></> : 'Generate ideas'}
+            </div>
+            <button
+              type="submit"
+              className={`btn btn-primary ${styles.submitButton}`}
+              disabled={!topic.trim() || loadingIdeas}
+            >
+              {loadingIdeas ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                'Generate Ideas'
+              )}
             </button>
-            {ideasError && <div style={{ color: 'var(--error)' }}>{ideasError}</div>}
-          </form>
-          <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
-            {ideas.map((idea, idx) => (
-              <div key={idx} style={{ border: '1px solid var(--gray-200)', borderRadius: 6, padding: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <strong>{idea.title}</strong>
-                  <button className="btn btn-secondary" onClick={() => copy(`${idea.title}\n\n${idea.description}`)}>Copy</button>
-                </div>
-                <p style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{idea.description}</p>
-              </div>
-            ))}
-            {(!loadingIdeas && ideas.length === 0) && (
-              <div style={{ color: 'var(--gray-700)' }}>No ideas yet.</div>
+            {ideasError && (
+              <div className={styles.errorMessage}>{ideasError}</div>
             )}
-          </div>
+          </form>
+
+          {ideas.length > 0 && (
+            <div className={styles.resultsSection}>
+              <h3 className={styles.resultsTitle}>Generated Ideas ({ideas.length})</h3>
+              <div className={styles.resultsList}>
+                {ideas.map((idea, idx) => (
+                  <div key={idx} className={styles.ideaCard}>
+                    <div className={styles.ideaHeader}>
+                      <h4 className={styles.ideaTitle}>{idea.title}</h4>
+                      <button
+                        className={`btn btn-secondary btn-sm ${styles.copyButton}`}
+                        onClick={() => copy(`${idea.title}\n\n${idea.description}`)}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <p className={styles.ideaDescription}>{idea.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!loadingIdeas && ideas.length === 0 && !ideasError && (
+            <div className={styles.emptyState}>
+              Enter a topic and click "Generate Ideas" to get started.
+            </div>
+          )}
         </div>
 
-        <div style={{ border: '1px solid var(--gray-300)', borderRadius: 8, padding: 16 }}>
-          <h2 style={{ margin: '0 0 12px' }}>Generate Test Cases</h2>
-          <form onSubmit={onGenerateCases} style={{ display: 'grid', gap: 12 }}>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span>Challenge description</span>
+        {/* Generate Test Cases Card */}
+        <div className={styles.toolCard}>
+          <div className={styles.toolHeader}>
+            <span className={styles.toolIcon}>🧪</span>
+            <div>
+              <h2 className={styles.toolTitle}>Generate Test Cases</h2>
+              <p className={styles.toolDescription}>
+                Generate test cases for a challenge based on its description
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={onGenerateCases} className={styles.form}>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Challenge Description *</label>
               <textarea
+                className={styles.textarea}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={5}
                 placeholder='Describe the problem in detail for better test cases...'
+                rows={6}
               />
-            </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span>How many cases?</span>
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Number of Test Cases</label>
               <input
                 type="number"
+                className={styles.input}
                 min={1}
                 max={20}
                 value={caseCount}
                 onChange={(e) => setCaseCount(Number(e.target.value))}
               />
-            </label>
-            <button type="submit" className="btn btn-primary" disabled={!description.trim() || loadingCases}>
-              {loadingCases ? <><LoadingSpinner size="sm" /> <span style={{ marginLeft: 8 }}>Generating...</span></> : 'Generate cases'}
+            </div>
+            <button
+              type="submit"
+              className={`btn btn-primary ${styles.submitButton}`}
+              disabled={!description.trim() || loadingCases}
+            >
+              {loadingCases ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                'Generate Test Cases'
+              )}
             </button>
-            {casesError && <div style={{ color: 'var(--error)' }}>{casesError}</div>}
-          </form>
-          <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
-            {testCases.map((tc, idx) => (
-              <div key={idx} style={{ border: '1px solid var(--gray-200)', borderRadius: 6, padding: 12, display: 'grid', gap: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong>Case #{idx + 1}</strong>
-                  <button className="btn btn-secondary" onClick={() => copy(`${tc.input}\n${tc.expectedOutput}`)}>Copy .in/.out</button>
-                </div>
-                <div>
-                  <div style={{ fontSize: 12, color: 'var(--gray-700)' }}>Input</div>
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{tc.input}</pre>
-                </div>
-                <div>
-                  <div style={{ fontSize: 12, color: 'var(--gray-700)' }}>Expected Output</div>
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{tc.expectedOutput}</pre>
-                </div>
-              </div>
-            ))}
-            {(!loadingCases && testCases.length === 0) && (
-              <div style={{ color: 'var(--gray-700)' }}>No test cases yet.</div>
+            {casesError && (
+              <div className={styles.errorMessage}>{casesError}</div>
             )}
-          </div>
-          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-            <button className="btn btn-outline" onClick={onValidateFirstCase} disabled={testCases.length === 0 || validating}>
-              {validating ? 'Validating...' : 'Quick-validate first case'}
-            </button>
-            {validationResult && <span>{validationResult}</span>}
-          </div>
+          </form>
+
+          {testCases.length > 0 && (
+            <div className={styles.resultsSection}>
+              <h3 className={styles.resultsTitle}>Generated Test Cases ({testCases.length})</h3>
+              <div className={styles.resultsList}>
+                {testCases.map((tc, idx) => (
+                  <div key={idx} className={styles.testCaseCard}>
+                    <div className={styles.testCaseHeader}>
+                      <span className={styles.testCaseNumber}>Test Case #{idx + 1}</span>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => copy(`Input:\n${tc.input}\n\nExpected Output:\n${tc.expectedOutput}`)}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <div className={styles.testCaseContent}>
+                      <div className={styles.testCaseField}>
+                        <span className={styles.testCaseLabel}>Input</span>
+                        <pre className={styles.testCaseValue}>{tc.input}</pre>
+                      </div>
+                      <div className={styles.testCaseField}>
+                        <span className={styles.testCaseLabel}>Expected Output</span>
+                        <pre className={styles.testCaseValue}>{tc.expectedOutput}</pre>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!loadingCases && testCases.length === 0 && !casesError && (
+            <div className={styles.emptyState}>
+              Enter a challenge description and click "Generate Test Cases" to get started.
+            </div>
+          )}
+
+          {testCases.length > 0 && (
+            <div className={styles.validationSection}>
+              <button
+                className={`btn btn-secondary ${styles.validationButton}`}
+                onClick={onValidateFirstCase}
+                disabled={validating}
+              >
+                {validating ? 'Validating...' : 'Validate First Case'}
+              </button>
+              {validationResult && (
+                <div className={`${styles.validationResult} ${getValidationClass()}`}>
+                  {validationResult}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      </section>
+      </div>
     </div>
   )
 }
-
-
