@@ -9,6 +9,7 @@ import LoadingSpinner from './components/ui/LoadingSpinner'
 import { useAuthStore } from './stores/auth-store'
 import type { ReactNode } from 'react'
 import type { Role } from './types/api'
+import LeaderboardPage from './pages/Leaderboard'
 
 function RequireAuth({ children, roles }: { children: ReactNode; roles?: Role[] }) {
   const user = useAuthStore((state: import('./stores/auth-store').AuthState) => state.user)
@@ -112,6 +113,16 @@ export default function App() {
           <RequireAuth>
             <Layout fullWidth>
               <ChallengeDetail />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/leaderboard"
+        element={
+          <RequireAuth>
+            <Layout>
+              <LeaderboardPage />
             </Layout>
           </RequireAuth>
         }
