@@ -23,8 +23,8 @@ export default function ChallengeDetail() {
   const [isRunning, setIsRunning] = useState(false)
   const [consoleOutput, setConsoleOutput] = useState('')
   
-  // Disable submit button for ADMIN users
-  const isSubmitDisabled = user?.role === 'ADMIN'
+  // Disable submit button for ADMIN and PROFESSOR users
+  const isSubmitDisabled = user?.role === 'ADMIN' || user?.role === 'PROFESSOR'
 
   const { data: challenge, isLoading } = useQuery({
     queryKey: ['challenge', id],
