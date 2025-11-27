@@ -11,6 +11,7 @@ import styles from '../../styles/ChallengeManagement.module.css'
 export default function ChallengeManagement() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingChallenge, setEditingChallenge] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [difficultyFilter, setDifficultyFilter] = useState<string>('')
@@ -34,8 +35,14 @@ export default function ChallengeManagement() {
     memoryLimit: 256,
     courseId: '',
     status: 'DRAFT',
-    testInput: '',
-    testExpectedOutput: '',
+    testCases: [
+      {
+        input: '',
+        expectedOutput: '',
+        isHidden: false,
+        order: 1,
+      }
+    ],
   })
 
   // Filter challenges
@@ -78,14 +85,14 @@ export default function ChallengeManagement() {
         memoryLimit: Number(form.memoryLimit),
         courseId: form.courseId || undefined,
         status: form.status,
-        testCases: [
-          { 
-            input: form.testInput || '1\n', 
-            expectedOutput: form.testExpectedOutput || '1\n', 
-            isHidden: false, 
-            order: 1 
-          }
-        ],
+        testCases: form.testCases
+          .filter((tc: any) => tc.input.trim() || tc.expectedOutput.trim())
+          .map((tc: any, index: number) => ({
+            input: tc.input.trim() || '1\n',
+            expectedOutput: tc.expectedOutput.trim() || '1\n',
+            isHidden: tc.isHidden || false,
+            order: index + 1,
+          })),
       }
       const res = await api.post('/challenges', payload)
       return res.data?.data
@@ -102,8 +109,14 @@ export default function ChallengeManagement() {
         memoryLimit: 256,
         courseId: '',
         status: 'DRAFT',
-        testInput: '',
-        testExpectedOutput: '',
+        testCases: [
+          {
+            input: '',
+            expectedOutput: '',
+            isHidden: false,
+            order: 1,
+          }
+        ],
       })
     }
   })
@@ -114,6 +127,54 @@ export default function ChallengeManagement() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'challenges'] })
+    }
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const payload = {
+        title: form.title,
+        description: form.description,
+        difficulty: form.difficulty,
+        tags: form.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
+        timeLimit: Number(form.timeLimit),
+        memoryLimit: Number(form.memoryLimit),
+        courseId: form.courseId || undefined,
+        status: form.status,
+        testCases: form.testCases
+          .filter((tc: any) => tc.input.trim() || tc.expectedOutput.trim())
+          .map((tc: any, index: number) => ({
+            input: tc.input.trim() || '1\n',
+            expectedOutput: tc.expectedOutput.trim() || '1\n',
+            isHidden: tc.isHidden || false,
+            order: index + 1,
+          })),
+      }
+      const res = await api.put(`/challenges/${id}`, payload)
+      return res.data?.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'challenges'] })
+      setEditingChallenge(null)
+      setShowCreate(false)
+      setForm({
+        title: '',
+        description: '',
+        difficulty: 'Easy',
+        tags: '',
+        timeLimit: 1000,
+        memoryLimit: 256,
+        courseId: '',
+        status: 'DRAFT',
+        testCases: [
+          {
+            input: '',
+            expectedOutput: '',
+            isHidden: false,
+            order: 1,
+          }
+        ],
+      })
     }
   })
 
@@ -135,6 +196,98 @@ export default function ChallengeManagement() {
     if (window.confirm(`Are you sure you want to delete "${title}"? This action cannot be undone.`)) {
       deleteMutation.mutate(id)
     }
+  }
+
+  const handleEdit = (challenge: any) => {
+    // Load test cases from challenge
+    const testCases = challenge.testCases && challenge.testCases.length > 0
+      ? challenge.testCases.map((tc: any, index: number) => ({
+          input: tc.input || '',
+          expectedOutput: tc.expectedOutput || tc.output || '',
+          isHidden: tc.isHidden || false,
+          order: index + 1,
+        }))
+      : [
+          {
+            input: '',
+            expectedOutput: '',
+            isHidden: false,
+            order: 1,
+          }
+        ]
+    
+    setForm({
+      title: challenge.title || '',
+      description: challenge.description || '',
+      difficulty: challenge.difficulty || 'Easy',
+      tags: Array.isArray(challenge.tags) ? challenge.tags.join(', ') : '',
+      timeLimit: challenge.timeLimit || 1000,
+      memoryLimit: challenge.memoryLimit || 256,
+      courseId: challenge.courseId || '',
+      status: challenge.status || 'DRAFT',
+      testCases: testCases,
+    })
+    setEditingChallenge(challenge)
+    setShowCreate(true)
+  }
+
+  const handleCloseModal = () => {
+    setShowCreate(false)
+    setEditingChallenge(null)
+    setForm({
+      title: '',
+      description: '',
+      difficulty: 'Easy',
+      tags: '',
+      timeLimit: 1000,
+      memoryLimit: 256,
+      courseId: '',
+      status: 'DRAFT',
+      testCases: [
+        {
+          input: '',
+          expectedOutput: '',
+          isHidden: false,
+          order: 1,
+        }
+      ],
+    })
+  }
+
+  const addTestCase = () => {
+    setForm({
+      ...form,
+      testCases: [
+        ...form.testCases,
+        {
+          input: '',
+          expectedOutput: '',
+          isHidden: false,
+          order: form.testCases.length + 1,
+        }
+      ]
+    })
+  }
+
+  const removeTestCase = (index: number) => {
+    if (form.testCases.length > 1) {
+      setForm({
+        ...form,
+        testCases: form.testCases.filter((_: any, i: number) => i !== index)
+      })
+    }
+  }
+
+  const updateTestCase = (index: number, field: string, value: any) => {
+    const updatedTestCases = [...form.testCases]
+    updatedTestCases[index] = {
+      ...updatedTestCases[index],
+      [field]: value,
+    }
+    setForm({
+      ...form,
+      testCases: updatedTestCases,
+    })
   }
 
   return (
@@ -260,6 +413,12 @@ export default function ChallengeManagement() {
                       View
                     </Link>
                     <button
+                      className={`${styles.actionButton} ${styles.editButton}`}
+                      onClick={() => handleEdit(c)}
+                    >
+                      Edit
+                    </button>
+                    <button
                       className={`${styles.actionButton} ${styles.deleteButton}`}
                       onClick={() => handleDelete(c.id, c.title)}
                       disabled={deleteMutation.isPending}
@@ -274,15 +433,17 @@ export default function ChallengeManagement() {
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* Create/Edit Modal */}
       {showCreate && (
-        <div className={styles.modalOverlay} onClick={() => setShowCreate(false)}>
+        <div className={styles.modalOverlay} onClick={handleCloseModal}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h2 className={styles.modalTitle}>Create New Challenge</h2>
+              <h2 className={styles.modalTitle}>
+                {editingChallenge ? 'Edit Challenge' : 'Create New Challenge'}
+              </h2>
               <button
                 className={styles.closeButton}
-                onClick={() => setShowCreate(false)}
+                onClick={handleCloseModal}
                 aria-label="Close"
               >
                 ×
@@ -384,43 +545,95 @@ export default function ChallengeManagement() {
                 </div>
               </div>
 
-              <div className={styles.formGrid}>
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Sample Input</label>
-                  <textarea
-                    className={styles.textarea}
-                    value={form.testInput}
-                    onChange={(e) => setForm({ ...form, testInput: e.target.value })}
-                    placeholder="Enter sample input..."
-                    rows={4}
-                  />
+              {/* Test Cases Section */}
+              <div className={styles.testCasesSection}>
+                <div className={styles.sectionHeader}>
+                  <h3 className={styles.sectionTitle}>Test Cases</h3>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={addTestCase}
+                  >
+                    + Add Test Case
+                  </button>
                 </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Expected Output</label>
-                  <textarea
-                    className={styles.textarea}
-                    value={form.testExpectedOutput}
-                    onChange={(e) => setForm({ ...form, testExpectedOutput: e.target.value })}
-                    placeholder="Enter expected output..."
-                    rows={4}
-                  />
-                </div>
+                {form.testCases.map((testCase: any, index: number) => (
+                  <div key={index} className={styles.testCaseCard}>
+                    <div className={styles.testCaseHeader}>
+                      <span className={styles.testCaseNumber}>Test Case {index + 1}</span>
+                      {form.testCases.length > 1 && (
+                        <button
+                          type="button"
+                          className={styles.removeTestCaseButton}
+                          onClick={() => removeTestCase(index)}
+                          aria-label="Remove test case"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    <div className={styles.formGrid}>
+                      <div className={styles.formGroup}>
+                        <label className={styles.label}>Input *</label>
+                        <textarea
+                          className={styles.textarea}
+                          value={testCase.input}
+                          onChange={(e) => updateTestCase(index, 'input', e.target.value)}
+                          placeholder="Enter test case input..."
+                          rows={3}
+                        />
+                      </div>
+                      <div className={styles.formGroup}>
+                        <label className={styles.label}>Expected Output *</label>
+                        <textarea
+                          className={styles.textarea}
+                          value={testCase.expectedOutput}
+                          onChange={(e) => updateTestCase(index, 'expectedOutput', e.target.value)}
+                          placeholder="Enter expected output..."
+                          rows={3}
+                        />
+                      </div>
+                    </div>
+                    <div className={styles.formGroup}>
+                      <label className={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={testCase.isHidden}
+                          onChange={(e) => updateTestCase(index, 'isHidden', e.target.checked)}
+                        />
+                        <span>Hidden (not visible to students)</span>
+                      </label>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
             <div className={styles.modalFooter}>
               <button
                 className="btn btn-secondary"
-                onClick={() => setShowCreate(false)}
-                disabled={createMutation.isPending}
+                onClick={handleCloseModal}
+                disabled={createMutation.isPending || updateMutation.isPending}
               >
                 Cancel
               </button>
               <button
                 className="btn btn-primary"
-                onClick={() => createMutation.mutate()}
-                disabled={createMutation.isPending || !form.title || !form.description}
+                onClick={() => {
+                  if (editingChallenge) {
+                    updateMutation.mutate(editingChallenge.id)
+                  } else {
+                    createMutation.mutate()
+                  }
+                }}
+                disabled={
+                  (createMutation.isPending || updateMutation.isPending) || 
+                  !form.title || 
+                  !form.description
+                }
               >
-                {createMutation.isPending ? 'Creating...' : 'Create Challenge'}
+                {createMutation.isPending || updateMutation.isPending
+                  ? (editingChallenge ? 'Updating...' : 'Creating...')
+                  : (editingChallenge ? 'Update Challenge' : 'Create Challenge')}
               </button>
             </div>
           </div>
