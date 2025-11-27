@@ -23,7 +23,7 @@ export default function LeaderboardPage() {
   const user = useAuthStore((state) => state.user)
   const [tab, setTab] = useState<Tab>('challenge')
   const [selectedId, setSelectedId] = useState<string>('')
-  const [language, setLanguage] = useState<LeaderboardFilters['language']>('')
+  const [language, setLanguage] = useState<LeaderboardFilters['language']>(undefined)
   const [from, setFrom] = useState<string>('')
   const [to, setTo] = useState<string>('')
   const [includeEval, setIncludeEval] = useState<boolean>(false)
@@ -49,7 +49,7 @@ export default function LeaderboardPage() {
       if (!selectedId) return []
       try {
         const filters: LeaderboardFilters = {
-          language: (language || undefined) as any,
+          language: language,
           from: from || undefined,
           to: to || undefined,
           includeEvaluationSubmissions: tab !== 'evaluation' ? includeEval : undefined
@@ -203,7 +203,10 @@ export default function LeaderboardPage() {
                 <label className={styles.filterLabel}>Language</label>
                 <select
                   value={language || ''}
-                  onChange={(e) => setLanguage((e.target.value || '') as any)}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setLanguage(value === '' ? undefined : (value as LeaderboardFilters['language']))
+                  }}
                   className={styles.filterControl}
                 >
                   <option value="">All Languages</option>

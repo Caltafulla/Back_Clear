@@ -17,10 +17,22 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
     private evaluationRepo?: IEvaluationRepository
   ) {}
 
+  // Generate cache key that includes filters
+  private getCacheKey(id: string, options?: LeaderboardOptions): string {
+    if (!options) return id;
+    const parts = [id];
+    if (options.language) parts.push(`lang:${options.language}`);
+    if (options.from) parts.push(`from:${options.from.getTime()}`);
+    if (options.to) parts.push(`to:${options.to.getTime()}`);
+    if (options.includeEvaluationSubmissions) parts.push('eval:true');
+    return parts.join('|');
+  }
+
   // Compute challenge leaderboard on demand
   async getChallengeLeaderboard(challengeId: string, limit: number = 50, options?: LeaderboardOptions): Promise<ChallengeLeaderboard> {
     // If present in cache, return
-    const cached = this.challengeCache.get(challengeId);
+    const cacheKey = this.getCacheKey(challengeId, options);
+    const cached = this.challengeCache.get(cacheKey);
     if (cached) return { ...cached };
 
     // Build leaderboard
@@ -90,13 +102,14 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
       lastUpdated: new Date()
     };
 
-    this.challengeCache.set(challengeId, result);
+    this.challengeCache.set(cacheKey, result);
     return { ...result };
   }
 
   // Compute course leaderboard by summing best submissions per challenge
   async getCourseLeaderboard(courseId: string, limit: number = 50, options?: LeaderboardOptions): Promise<CourseLeaderboard> {
-    const cached = this.courseCache.get(courseId);
+    const cacheKey = this.getCacheKey(courseId, options);
+    const cached = this.courseCache.get(cacheKey);
     if (cached) return { ...cached };
 
     let submissions = await this.submissionRepo.findByCourseId(courseId);
@@ -180,12 +193,13 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
       lastUpdated: new Date()
     };
 
-    this.courseCache.set(courseId, result);
+    this.courseCache.set(cacheKey, result);
     return { ...result };
   }
 
   async getEvaluationLeaderboard(evaluationId: string, limit: number = 50, options?: LeaderboardOptions) {
-    const cached = this.evaluationCache.get(evaluationId);
+    const cacheKey = this.getCacheKey(evaluationId, options);
+    const cached = this.evaluationCache.get(cacheKey);
     if (cached) return { ...cached };
 
     if (!this.evaluationRepo) {
@@ -282,24 +296,34 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
       lastUpdated: new Date()
     };
 
-    this.evaluationCache.set(evaluationId, result);
+    this.evaluationCache.set(cacheKey, result);
     return { ...result };
   }
 
+  // Invalidate all cache entries for a given entity (including all filter variations)
+  private invalidateCache(cache: Map<string, any>, entityId: string): void {
+    const keysToDelete: string[] = [];
+    for (const key of cache.keys()) {
+      if (key === entityId || key.startsWith(`${entityId}|`)) {
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => cache.delete(key));
+  }
+
   async updateChallengeLeaderboard(challengeId: string): Promise<void> {
-    // Recompute and cache
-    const lb = await this.getChallengeLeaderboard(challengeId);
-    this.challengeCache.set(challengeId, lb);
+    // Invalidate all cached variations for this challenge
+    this.invalidateCache(this.challengeCache, challengeId);
   }
 
   async updateCourseLeaderboard(courseId: string): Promise<void> {
-    const lb = await this.getCourseLeaderboard(courseId);
-    this.courseCache.set(courseId, lb);
+    // Invalidate all cached variations for this course
+    this.invalidateCache(this.courseCache, courseId);
   }
 
   async updateEvaluationLeaderboard(evaluationId: string): Promise<void> {
-    const lb = await this.getEvaluationLeaderboard(evaluationId);
-    this.evaluationCache.set(evaluationId, lb);
+    // Invalidate all cached variations for this evaluation
+    this.invalidateCache(this.evaluationCache, evaluationId);
   }
 
   async getUserRank(userId: string, type: string, entityId: string): Promise<number> {

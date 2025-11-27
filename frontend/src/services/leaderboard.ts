@@ -31,13 +31,16 @@ export async function getChallengeLeaderboard(challengeId: string, limit = 50, f
   if (!challengeId) return []
   const path = filters?.publicMode ? `/leaderboard/public/challenge/${challengeId}` : `/leaderboard/challenge/${challengeId}`
   const res = await requestQueue.add(() => {
-    const q = toQuery({
+    const queryParams = {
       limit,
       language: filters?.language,
       from: filters?.from,
       to: filters?.to,
       includeEvaluationSubmissions: filters?.includeEvaluationSubmissions
-    })
+    }
+    console.log('getChallengeLeaderboard: Sending query params:', queryParams)
+    const q = toQuery(queryParams)
+    console.log('getChallengeLeaderboard: Query string:', q)
     return api.get(`${path}${q}`)
   })
   const rankings = res.data?.data?.rankings || []
@@ -59,13 +62,16 @@ export async function getCourseLeaderboard(courseId: string, limit = 50, filters
   try {
     const path = filters?.publicMode ? `/leaderboard/public/course/${courseId}` : `/leaderboard/course/${courseId}`
     const res = await requestQueue.add(() => {
-      const q = toQuery({
+      const queryParams = {
         limit,
         language: filters?.language,
         from: filters?.from,
         to: filters?.to,
         includeEvaluationSubmissions: filters?.includeEvaluationSubmissions
-      })
+      }
+      console.log('getCourseLeaderboard: Sending query params:', queryParams)
+      const q = toQuery(queryParams)
+      console.log('getCourseLeaderboard: Query string:', q)
       return api.get(`${path}${q}`)
     })
     
