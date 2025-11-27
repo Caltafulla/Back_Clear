@@ -17,6 +17,7 @@ export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD'
 export interface TestCase {
   input: string
   output: string
+  expectedOutput?: string // Backend uses this name
 }
 
 export interface Challenge {
@@ -27,8 +28,12 @@ export interface Challenge {
   tags: string[]
   timeLimit: number
   memoryLimit: number
-  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | 'draft' | 'published' | 'archived'
   testCases?: TestCase[]
+  courseId?: string
+  createdBy?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type Language = 'typescript' | 'javascript'

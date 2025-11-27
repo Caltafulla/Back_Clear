@@ -37,11 +37,20 @@ export default function LoginPage() {
       }
 
       localStorage.setItem('access_token', data.token)
+      // Set user in store - this marks as initialized so we don't reload
       setUser(data.user)
-      if (data.user.role === 'ADMIN') navigate('/dashboard')
-      else navigate('/dashboard')
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        if (data.user.role === 'ADMIN') navigate('/dashboard')
+        else navigate('/dashboard')
+      }, 100)
     } catch (err: any) {
-      setError(err?.response?.data?.message || String(err))
+      // Handle rate limiting specifically
+      if (err?.response?.status === 429) {
+        setError('Too many requests. Please wait a moment and try again.')
+      } else {
+        setError(err?.response?.data?.message || err?.message || String(err))
+      }
     } finally {
       setLoading(false)
     }

@@ -33,8 +33,13 @@ export async function getProfile(): Promise<User | null> {
     // returns { success: true, data: { user } }
     const user = res.data?.data?.user
     return user ? normalizeUser(user) : null
-  } catch (error) {
+  } catch (error: any) {
+    // Don't log 429 errors as errors, they're rate limiting
+    if (error?.response?.status === 429) {
+      console.warn('Rate limited on /auth/me, please wait')
+      throw error // Re-throw to let the store handle it
+    }
     console.error('Failed to get profile:', error)
-    return null
+    throw error // Re-throw to let the store handle it
   }
 }
