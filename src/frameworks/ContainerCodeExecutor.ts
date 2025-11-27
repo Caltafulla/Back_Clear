@@ -318,7 +318,8 @@ if (typeof main === 'function') {
   ): Promise<DockerExecutionResult> {
     return new Promise((resolve, reject) => {
       const timeLimitSeconds = Math.ceil(timeLimit / 1000);
-      const memoryLimitMb = memoryLimit || 512;
+      // Enforce at least 512 MB as per platform policy
+      const memoryLimitMb = Math.max(512, memoryLimit || 512);
 
       // Comando docker run con restricciones de seguridad
       const dockerArgs = [

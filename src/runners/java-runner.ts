@@ -32,7 +32,8 @@ export class JavaRunner {
 
   private async runTestCase(config: RunnerConfig, testCase: any): Promise<any> {
     const timeLimit = Math.max(100, config.timeLimit || 1500);
-    const memoryLimitMb = Math.max(64, config.memoryLimit || 512);
+    // Enforce at least 512 MB as per platform policy
+    const memoryLimitMb = Math.max(512, config.memoryLimit || 512);
 
     return new Promise((resolve) => {
       const start = Date.now();
