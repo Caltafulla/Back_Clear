@@ -10,6 +10,7 @@ type CodeEditorProps = {
   onSubmit?: () => void
   onRun?: () => void
   disabled?: boolean
+  submitDisabled?: boolean
   consoleOutput?: string
   isRunning?: boolean
 }
@@ -21,6 +22,7 @@ export default function CodeEditor({
   onSubmit,
   onRun,
   disabled = false,
+  submitDisabled = false,
   consoleOutput = '',
   isRunning = false,
 }: CodeEditorProps) {
@@ -72,7 +74,7 @@ export default function CodeEditor({
           <button
             className={`btn btn-primary ${styles.actionButton}`}
             onClick={onSubmit}
-            disabled={disabled || isRunning}
+            disabled={disabled || isRunning || submitDisabled}
           >
             Submit
           </button>

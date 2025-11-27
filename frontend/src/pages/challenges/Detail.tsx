@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '../../stores/auth-store'
 import { getChallenge } from '../../services/challenges'
 import { getMySubmissions, submitSolution } from '../../services/submissions'
 import CodeEditor from '../../components/editor/CodeEditor'
@@ -15,11 +16,15 @@ type Tab = 'description' | 'solutions' | 'discussion'
 export default function ChallengeDetail() {
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
+  const user = useAuthStore((s: import('../../stores/auth-store').AuthState) => s.user)
   const [activeTab, setActiveTab] = useState<Tab>('description')
   const [code, setCode] = useState('')
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [consoleOutput, setConsoleOutput] = useState('')
+  
+  // Disable submit button for ADMIN users
+  const isSubmitDisabled = user?.role === 'ADMIN'
 
   const { data: challenge, isLoading } = useQuery({
     queryKey: ['challenge', id],
@@ -235,6 +240,7 @@ export default function ChallengeDetail() {
               onSubmit={handleSubmit}
               onRun={handleRun}
               disabled={isRunning || submitMutation.isPending}
+              submitDisabled={isSubmitDisabled}
               consoleOutput={consoleOutput}
               isRunning={isRunning || submitMutation.isPending}
               language="python"

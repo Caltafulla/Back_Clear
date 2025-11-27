@@ -1,22 +1,30 @@
 import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { getChallenges } from '../../services/challenges'
 import { getCourses } from '../../services/courses'
 import api from '../../services/api'
+import Badge from '../../components/ui/Badge'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import styles from '../../styles/ChallengeManagement.module.css'
 
 export default function ChallengeManagement() {
   const qc = useQueryClient()
+  const [showCreate, setShowCreate] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [difficultyFilter, setDifficultyFilter] = useState<string>('')
+
   const { data: challenges = [], isLoading } = useQuery({
     queryKey: ['admin', 'challenges'],
     queryFn: () => getChallenges({ limit: 100 }),
   })
+
   const { data: courses = [] } = useQuery({
     queryKey: ['admin', 'courses'],
     queryFn: () => getCourses({ limit: 100 }),
   })
 
-  const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<any>({
     title: '',
     description: '',
@@ -25,9 +33,39 @@ export default function ChallengeManagement() {
     timeLimit: 1000,
     memoryLimit: 256,
     courseId: '',
+    status: 'DRAFT',
     testInput: '',
     testExpectedOutput: '',
   })
+
+  // Filter challenges
+  const filteredChallenges = useMemo(() => {
+    let filtered = challenges
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter((c: any) =>
+        c.title?.toLowerCase().includes(query) ||
+        c.description?.toLowerCase().includes(query)
+      )
+    }
+
+    if (statusFilter) {
+      filtered = filtered.filter((c: any) => {
+        const status = String(c.status || '').toUpperCase()
+        return status === statusFilter.toUpperCase()
+      })
+    }
+
+    if (difficultyFilter) {
+      filtered = filtered.filter((c: any) => {
+        const difficulty = String(c.difficulty || '').toUpperCase()
+        return difficulty === difficultyFilter.toUpperCase()
+      })
+    }
+
+    return filtered
+  }, [challenges, searchQuery, statusFilter, difficultyFilter])
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -38,9 +76,15 @@ export default function ChallengeManagement() {
         tags: form.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
         timeLimit: Number(form.timeLimit),
         memoryLimit: Number(form.memoryLimit),
-        courseId: form.courseId,
+        courseId: form.courseId || undefined,
+        status: form.status,
         testCases: [
-          { input: form.testInput || '1\n', expectedOutput: form.testExpectedOutput || '1\n', isHidden: false, order: 1 }
+          { 
+            input: form.testInput || '1\n', 
+            expectedOutput: form.testExpectedOutput || '1\n', 
+            isHidden: false, 
+            order: 1 
+          }
         ],
       }
       const res = await api.post('/challenges', payload)
@@ -57,6 +101,7 @@ export default function ChallengeManagement() {
         timeLimit: 1000,
         memoryLimit: 256,
         courseId: '',
+        status: 'DRAFT',
         testInput: '',
         testExpectedOutput: '',
       })
@@ -72,40 +117,155 @@ export default function ChallengeManagement() {
     }
   })
 
+  const getStatusBadgeClass = (status: string) => {
+    const statusUpper = String(status || '').toUpperCase()
+    if (statusUpper === 'PUBLISHED') return styles.statusPublished
+    if (statusUpper === 'ARCHIVED') return styles.statusArchived
+    return styles.statusDraft
+  }
+
+  const getCourseName = (courseId: string) => {
+    if (!courseId) return '-'
+    const course = courses.find((c: any) => c.id === courseId)
+    if (!course) return courseId
+    return course.name || course.title || course.code || courseId
+  }
+
+  const handleDelete = (id: string, title: string) => {
+    if (window.confirm(`Are you sure you want to delete "${title}"? This action cannot be undone.`)) {
+      deleteMutation.mutate(id)
+    }
+  }
+
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h1>Manage Challenges</h1>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>Create Challenge</button>
+    <div className={styles.challengeManagement}>
+      <div className={styles.header}>
+        <div className={styles.headerLeft}>
+          <h1 className={styles.title}>Manage Challenges</h1>
+          <p className={styles.subtitle}>
+            Create, edit, and manage coding challenges
+          </p>
+        </div>
+        <button 
+          className={`btn btn-primary ${styles.createButton}`}
+          onClick={() => setShowCreate(true)}
+        >
+          + Create Challenge
+        </button>
       </div>
 
+      {/* Filters */}
+      <div className={styles.filters}>
+        <div className={styles.searchContainer}>
+          <span className={styles.searchIcon}>🔍</span>
+          <input
+            type="text"
+            className={styles.searchInput}
+            placeholder="Search challenges..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <select
+          className={styles.filterSelect}
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="">All Status</option>
+          <option value="DRAFT">Draft</option>
+          <option value="PUBLISHED">Published</option>
+          <option value="ARCHIVED">Archived</option>
+        </select>
+        <select
+          className={styles.filterSelect}
+          value={difficultyFilter}
+          onChange={(e) => setDifficultyFilter(e.target.value)}
+        >
+          <option value="">All Difficulties</option>
+          <option value="EASY">Easy</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="HARD">Hard</option>
+        </select>
+        {(searchQuery || statusFilter || difficultyFilter) && (
+          <button
+            className="btn btn-secondary"
+            onClick={() => {
+              setSearchQuery('')
+              setStatusFilter('')
+              setDifficultyFilter('')
+            }}
+          >
+            Clear Filters
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
       {isLoading ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <LoadingSpinner />
-          <span>Loading challenges...</span>
+        <div className={styles.loadingContainer}>
+          <LoadingSpinner size="lg" />
+          <p>Loading challenges...</p>
+        </div>
+      ) : filteredChallenges.length === 0 ? (
+        <div className={styles.emptyState}>
+          <div className={styles.emptyIcon}>📝</div>
+          <h3>No challenges found</h3>
+          <p>
+            {searchQuery || statusFilter || difficultyFilter
+              ? 'Try adjusting your filters to see more results.'
+              : 'Get started by creating your first challenge.'}
+          </p>
+          {!searchQuery && !statusFilter && !difficultyFilter && (
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowCreate(true)}
+              style={{ marginTop: '16px' }}
+            >
+              Create Challenge
+            </button>
+          )}
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
+        <div className={styles.tableContainer}>
+          <table className={styles.table}>
+            <thead className={styles.tableHeader}>
               <tr>
-                <th style={{ textAlign: 'left', padding: '8px 12px' }}>Title</th>
-                <th style={{ textAlign: 'left', padding: '8px 12px' }}>Difficulty</th>
-                <th style={{ textAlign: 'left', padding: '8px 12px' }}>Status</th>
-                <th style={{ textAlign: 'left', padding: '8px 12px' }}>Course</th>
-                <th style={{ textAlign: 'left', padding: '8px 12px' }}>Actions</th>
+                <th>Title</th>
+                <th>Difficulty</th>
+                <th>Status</th>
+                <th>Course</th>
+                <th>Actions</th>
               </tr>
             </thead>
-            <tbody>
-              {challenges.map((c: any) => (
+            <tbody className={styles.tableBody}>
+              {filteredChallenges.map((c: any) => (
                 <tr key={c.id}>
-                  <td style={{ padding: '8px 12px' }}>{c.title}</td>
-                  <td style={{ padding: '8px 12px' }}>{c.difficulty}</td>
-                  <td style={{ padding: '8px 12px' }}>{String(c.status)}</td>
-                  <td style={{ padding: '8px 12px' }}>{c.courseId || '-'}</td>
-                  <td style={{ padding: '8px 12px' }}>
-                    <a className="btn btn-sm" href={`/challenges/${c.id}`}>View</a>{' '}
-                    <button className="btn btn-sm" onClick={() => deleteMutation.mutate(c.id)}>Delete</button>
+                  <td className={styles.titleCell}>{c.title || 'Untitled'}</td>
+                  <td>
+                    <Badge difficulty={c.difficulty} variant="difficulty">
+                      {c.difficulty || 'EASY'}
+                    </Badge>
+                  </td>
+                  <td>
+                    <span className={`${styles.statusBadge} ${getStatusBadgeClass(c.status)}`}>
+                      {String(c.status || 'DRAFT').toUpperCase()}
+                    </span>
+                  </td>
+                  <td>{getCourseName(c.courseId)}</td>
+                  <td className={styles.actionsCell}>
+                    <Link
+                      to={`/challenges/${c.id}`}
+                      className={`${styles.actionButton} ${styles.viewButton}`}
+                    >
+                      View
+                    </Link>
+                    <button
+                      className={`${styles.actionButton} ${styles.deleteButton}`}
+                      onClick={() => handleDelete(c.id, c.title)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -114,71 +274,158 @@ export default function ChallengeManagement() {
         </div>
       )}
 
+      {/* Create Modal */}
       {showCreate && (
-        <div style={{ marginTop: 16, border: '1px solid var(--gray-200)', borderRadius: 8, padding: 16 }}>
-          <h2 style={{ marginTop: 0 }}>Create Challenge</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-            <Input label="Title" value={form.title} onChange={(v) => setForm({ ...form, title: v })} />
-            <Select label="Difficulty" value={form.difficulty} onChange={(v) => setForm({ ...form, difficulty: v })} options={['Easy','Medium','Hard']} />
-            <Input label="Tags (comma separated)" value={form.tags} onChange={(v) => setForm({ ...form, tags: v })} />
-            <Input label="Time Limit (ms)" type="number" value={form.timeLimit} onChange={(v) => setForm({ ...form, timeLimit: v })} />
-            <Input label="Memory Limit (MB)" type="number" value={form.memoryLimit} onChange={(v) => setForm({ ...form, memoryLimit: v })} />
-            <Select label="Course" value={form.courseId} onChange={(v) => setForm({ ...form, courseId: v })} options={courses.map((c: any) => ({ value: c.id, label: c.name || c.title || c.id }))} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-            <Textarea label="Description" value={form.description} onChange={(v) => setForm({ ...form, description: v })} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-            <Textarea label="Sample Input" value={form.testInput} onChange={(v) => setForm({ ...form, testInput: v })} />
-            <Textarea label="Expected Output" value={form.testExpectedOutput} onChange={(v) => setForm({ ...form, testExpectedOutput: v })} />
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button className="btn btn-primary" onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-              {createMutation.isPending ? 'Creating...' : 'Create'}
-            </button>
-            <button className="btn" onClick={() => setShowCreate(false)}>Cancel</button>
+        <div className={styles.modalOverlay} onClick={() => setShowCreate(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2 className={styles.modalTitle}>Create New Challenge</h2>
+              <button
+                className={styles.closeButton}
+                onClick={() => setShowCreate(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              <div className={styles.formGrid}>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Title *</label>
+                  <input
+                    type="text"
+                    className={styles.input}
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    placeholder="Enter challenge title"
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Difficulty *</label>
+                  <select
+                    className={styles.select}
+                    value={form.difficulty}
+                    onChange={(e) => setForm({ ...form, difficulty: e.target.value })}
+                  >
+                    <option value="Easy">Easy</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Hard">Hard</option>
+                  </select>
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Status *</label>
+                  <select
+                    className={styles.select}
+                    value={form.status}
+                    onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  >
+                    <option value="DRAFT">Draft</option>
+                    <option value="PUBLISHED">Published</option>
+                    <option value="ARCHIVED">Archived</option>
+                  </select>
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Course</label>
+                  <select
+                    className={styles.select}
+                    value={form.courseId}
+                    onChange={(e) => setForm({ ...form, courseId: e.target.value })}
+                  >
+                    <option value="">No Course</option>
+                    {courses.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name || c.title || c.code || c.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Tags</label>
+                  <input
+                    type="text"
+                    className={styles.input}
+                    value={form.tags}
+                    onChange={(e) => setForm({ ...form, tags: e.target.value })}
+                    placeholder="arrays, hashmap, algorithms (comma separated)"
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Time Limit (ms) *</label>
+                  <input
+                    type="number"
+                    className={styles.input}
+                    value={form.timeLimit}
+                    onChange={(e) => setForm({ ...form, timeLimit: Number(e.target.value) })}
+                    min="1"
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Memory Limit (MB) *</label>
+                  <input
+                    type="number"
+                    className={styles.input}
+                    value={form.memoryLimit}
+                    onChange={(e) => setForm({ ...form, memoryLimit: Number(e.target.value) })}
+                    min="1"
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formRow}>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Description *</label>
+                  <textarea
+                    className={styles.textarea}
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    placeholder="Describe the challenge problem..."
+                    rows={6}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formGrid}>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Sample Input</label>
+                  <textarea
+                    className={styles.textarea}
+                    value={form.testInput}
+                    onChange={(e) => setForm({ ...form, testInput: e.target.value })}
+                    placeholder="Enter sample input..."
+                    rows={4}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Expected Output</label>
+                  <textarea
+                    className={styles.textarea}
+                    value={form.testExpectedOutput}
+                    onChange={(e) => setForm({ ...form, testExpectedOutput: e.target.value })}
+                    placeholder="Enter expected output..."
+                    rows={4}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className={styles.modalFooter}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowCreate(false)}
+                disabled={createMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => createMutation.mutate()}
+                disabled={createMutation.isPending || !form.title || !form.description}
+              >
+                {createMutation.isPending ? 'Creating...' : 'Create Challenge'}
+              </button>
+            </div>
           </div>
         </div>
       )}
     </div>
   )
 }
-
-function Input({ label, value, onChange, type = 'text' }: any) {
-  return (
-    <label style={{ display: 'grid', gap: 4 }}>
-      <span style={{ fontSize: 12, color: 'var(--gray-600)' }}>{label}</span>
-      <input type={type} value={value} onChange={(e) => onChange((type === 'number' ? Number(e.target.value) : e.target.value))} />
-    </label>
-  )
-}
-
-function Textarea({ label, value, onChange }: any) {
-  return (
-    <label style={{ display: 'grid', gap: 4 }}>
-      <span style={{ fontSize: 12, color: 'var(--gray-600)' }}>{label}</span>
-      <textarea rows={4} value={value} onChange={(e) => onChange(e.target.value)} />
-    </label>
-  )
-}
-
-function Select({ label, value, onChange, options }: any) {
-  const opts = useMemo(() => {
-    if (Array.isArray(options) && options.length > 0 && typeof options[0] === 'string') {
-      return (options as string[]).map(o => ({ value: o, label: o }))
-    }
-    return options
-  }, [options])
-  return (
-    <label style={{ display: 'grid', gap: 4 }}>
-      <span style={{ fontSize: 12, color: 'var(--gray-600)' }}>{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Select...</option>
-        {opts.map((o: any) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
