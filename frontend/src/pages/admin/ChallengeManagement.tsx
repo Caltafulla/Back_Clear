@@ -16,9 +16,10 @@ export default function ChallengeManagement() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [difficultyFilter, setDifficultyFilter] = useState<string>('')
 
-  const { data: challenges = [], isLoading } = useQuery({
+  const { data: challenges = [], isLoading, refetch } = useQuery({
     queryKey: ['admin', 'challenges'],
     queryFn: () => getChallenges({ limit: 100 }),
+    staleTime: 0, // Always consider data stale to ensure fresh data after updates
   })
 
   const { data: courses = [] } = useQuery({
@@ -76,29 +77,42 @@ export default function ChallengeManagement() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      // Validate required fields
+      if (!form.courseId || !form.courseId.trim()) {
+        throw new Error('Course is required to create a challenge')
+      }
+      
+      // Build payload according to backend schema (exact format as user specified)
       const payload = {
         title: form.title,
         description: form.description,
-        difficulty: form.difficulty,
+        difficulty: normalizeDifficulty(form.difficulty), // Ensure correct format
         tags: form.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
         timeLimit: Number(form.timeLimit),
         memoryLimit: Number(form.memoryLimit),
-        courseId: form.courseId || undefined,
-        status: form.status,
+        courseId: form.courseId.trim(),
         testCases: form.testCases
-          .filter((tc: any) => tc.input.trim() || tc.expectedOutput.trim())
+          .filter((tc: any) => tc.input.trim() && tc.expectedOutput.trim())
           .map((tc: any, index: number) => ({
-            input: tc.input.trim() || '1\n',
-            expectedOutput: tc.expectedOutput.trim() || '1\n',
+            input: tc.input.trim(),
+            expectedOutput: tc.expectedOutput.trim(),
             isHidden: tc.isHidden || false,
             order: index + 1,
           })),
       }
+      
+      console.log('Creating challenge with payload:', JSON.stringify(payload, null, 2))
       const res = await api.post('/challenges', payload)
       return res.data?.data
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'challenges'] })
+    onSuccess: async () => {
+      // Invalidate and refetch all challenge-related queries
+      await qc.invalidateQueries({ queryKey: ['admin', 'challenges'] })
+      await qc.invalidateQueries({ queryKey: ['challenges'] })
+      
+      // Refetch the challenges list
+      await qc.refetchQueries({ queryKey: ['admin', 'challenges'] })
+      
       setShowCreate(false)
       setForm({
         title: '',
@@ -118,6 +132,10 @@ export default function ChallengeManagement() {
           }
         ],
       })
+    },
+    onError: (error: any) => {
+      console.error('Failed to create challenge:', error)
+      alert(error?.response?.data?.message || error?.message || 'Failed to create challenge')
     }
   })
 
@@ -125,36 +143,95 @@ export default function ChallengeManagement() {
     mutationFn: async (id: string) => {
       await api.delete(`/challenges/${id}`)
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'challenges'] })
+    onSuccess: async (_, id) => {
+      // Invalidate and refetch all challenge-related queries
+      await qc.invalidateQueries({ queryKey: ['admin', 'challenges'] })
+      await qc.invalidateQueries({ queryKey: ['challenges'] })
+      await qc.invalidateQueries({ queryKey: ['challenge', id] })
+      
+      // Refetch the challenges list
+      await qc.refetchQueries({ queryKey: ['admin', 'challenges'] })
+    },
+    onError: (error: any) => {
+      console.error('Failed to delete challenge:', error)
+      alert(error?.response?.data?.message || error?.message || 'Failed to delete challenge')
     }
   })
 
   const updateMutation = useMutation({
     mutationFn: async (id: string) => {
-      const payload = {
-        title: form.title,
-        description: form.description,
-        difficulty: form.difficulty,
-        tags: form.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
-        timeLimit: Number(form.timeLimit),
-        memoryLimit: Number(form.memoryLimit),
-        courseId: form.courseId || undefined,
-        status: form.status,
-        testCases: form.testCases
-          .filter((tc: any) => tc.input.trim() || tc.expectedOutput.trim())
-          .map((tc: any, index: number) => ({
-            input: tc.input.trim() || '1\n',
-            expectedOutput: tc.expectedOutput.trim() || '1\n',
-            isHidden: tc.isHidden || false,
-            order: index + 1,
-          })),
+      // Build partial update payload - only include fields that are present and valid
+      const payload: any = {}
+      
+      // Only include fields that have values or have changed
+      if (form.title && form.title.trim()) {
+        payload.title = form.title.trim()
       }
+      if (form.description && form.description.trim()) {
+        payload.description = form.description.trim()
+      }
+      if (form.difficulty) {
+        payload.difficulty = normalizeDifficulty(form.difficulty) // Ensure correct format
+      }
+      if (form.tags && form.tags.trim()) {
+        const tagsArray = form.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+        if (tagsArray.length > 0) {
+          payload.tags = tagsArray
+        }
+      }
+      if (form.timeLimit && form.timeLimit > 0) {
+        payload.timeLimit = Number(form.timeLimit)
+      }
+      if (form.memoryLimit && form.memoryLimit > 0) {
+        payload.memoryLimit = Number(form.memoryLimit)
+      }
+      
+      // Note: courseId is NOT in the update schema, so we don't send it
+      
+      // Convert status to lowercase as backend expects 'draft', 'published', 'archived'
+      if (form.status) {
+        payload.status = form.status.toLowerCase()
+      }
+      
+      // Include test cases if they exist and are valid
+      // Backend requires at least 1 test case if testCases is included
+      const validTestCases = form.testCases
+        .filter((tc: any) => tc.input && tc.input.trim() && tc.expectedOutput && tc.expectedOutput.trim())
+        .map((tc: any, index: number) => ({
+          input: tc.input.trim(),
+          expectedOutput: tc.expectedOutput.trim(),
+          isHidden: tc.isHidden || false,
+          order: index + 1,
+        }))
+      
+      // Only include testCases if we have at least one valid test case
+      if (validTestCases.length > 0) {
+        payload.testCases = validTestCases
+      }
+      
+      // Ensure we have at least one field to update
+      if (Object.keys(payload).length === 0) {
+        throw new Error('At least one field must be provided for update')
+      }
+      
+      console.log('Updating challenge:', id, JSON.stringify(payload, null, 2))
       const res = await api.put(`/challenges/${id}`, payload)
+      console.log('Update response:', res.data)
       return res.data?.data
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'challenges'] })
+    onSuccess: async (data, id) => {
+      console.log('Update successful, invalidating queries...')
+      // Invalidate and refetch all challenge-related queries
+      await qc.invalidateQueries({ queryKey: ['admin', 'challenges'] })
+      await qc.invalidateQueries({ queryKey: ['challenges'] })
+      await qc.invalidateQueries({ queryKey: ['challenge', id] })
+      
+      // Refetch the challenges list explicitly
+      await qc.refetchQueries({ queryKey: ['admin', 'challenges'] })
+      await refetch() // Also use the refetch from useQuery
+      
+      console.log('Queries invalidated and refetched')
+      
       setEditingChallenge(null)
       setShowCreate(false)
       setForm({
@@ -175,6 +252,27 @@ export default function ChallengeManagement() {
           }
         ],
       })
+    },
+    onError: (error: any) => {
+      console.error('Failed to update challenge:', error)
+      console.error('Error response:', error?.response?.data)
+      
+      // Show detailed error message
+      let errorMessage = 'Failed to update challenge'
+      if (error?.response?.data) {
+        const errorData = error.response.data
+        if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+          // Show validation errors
+          const errorDetails = errorData.errors.map((e: any) => `${e.field}: ${e.message}`).join('\n')
+          errorMessage = `Validation errors:\n${errorDetails}`
+        } else if (errorData.message) {
+          errorMessage = errorData.message
+        }
+      } else if (error?.message) {
+        errorMessage = error.message
+      }
+      
+      alert(errorMessage)
     }
   })
 
@@ -198,6 +296,16 @@ export default function ChallengeManagement() {
     }
   }
 
+  // Normalize difficulty to backend format: "Easy", "Medium", "Hard"
+  const normalizeDifficulty = (difficulty: string): string => {
+    if (!difficulty) return 'Easy'
+    const upper = difficulty.toUpperCase()
+    if (upper === 'EASY') return 'Easy'
+    if (upper === 'MEDIUM') return 'Medium'
+    if (upper === 'HARD') return 'Hard'
+    return difficulty // Return as-is if already in correct format
+  }
+
   const handleEdit = (challenge: any) => {
     // Load test cases from challenge
     const testCases = challenge.testCases && challenge.testCases.length > 0
@@ -219,7 +327,7 @@ export default function ChallengeManagement() {
     setForm({
       title: challenge.title || '',
       description: challenge.description || '',
-      difficulty: challenge.difficulty || 'Easy',
+      difficulty: normalizeDifficulty(challenge.difficulty),
       tags: Array.isArray(challenge.tags) ? challenge.tags.join(', ') : '',
       timeLimit: challenge.timeLimit || 1000,
       memoryLimit: challenge.memoryLimit || 256,
