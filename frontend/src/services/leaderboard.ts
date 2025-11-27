@@ -25,18 +25,88 @@ export async function getChallengeLeaderboard(challengeId: string, limit = 50): 
 }
 
 export async function getCourseLeaderboard(courseId: string, limit = 50): Promise<LeaderboardRow[]> {
-  if (!courseId) return []
-  const res = await requestQueue.add(() => 
-    api.get(`/leaderboard/course/${courseId}?limit=${limit}`)
-  )
-  const rankings = res.data?.data?.rankings || []
-  return rankings.map((r: any) => ({
-    rank: r.rank ?? 0,
-    userId: r.user?.id,
-    userName: r.user?.name || 'Unknown',
-    score: r.score ?? 0,
-    totalTime: r.totalTime,
-  }))
+  if (!courseId) {
+    console.warn('getCourseLeaderboard: No courseId provided')
+    return []
+  }
+  
+  try {
+    console.log('getCourseLeaderboard: Fetching for courseId:', courseId, 'limit:', limit)
+    const res = await requestQueue.add(() => 
+      api.get(`/leaderboard/course/${courseId}?limit=${limit}`)
+    )
+    
+    console.log('getCourseLeaderboard: Response received:', {
+      status: res.status,
+      success: res.data?.success,
+      dataKeys: res.data?.data ? Object.keys(res.data.data) : [],
+      fullData: res.data
+    })
+    
+    // Backend returns: { success: true, data: { rankings: [...] } }
+    let rankings: any[] = []
+    
+    if (res.data?.success && res.data?.data) {
+      // Primary format: { success: true, data: { rankings: [...] } }
+      if (Array.isArray(res.data.data.rankings)) {
+        rankings = res.data.data.rankings
+        console.log('getCourseLeaderboard: Found rankings array with', rankings.length, 'entries')
+      } 
+      // Fallback: data might be the array directly
+      else if (Array.isArray(res.data.data)) {
+        rankings = res.data.data
+        console.log('getCourseLeaderboard: Found data as array with', rankings.length, 'entries')
+      }
+      // Fallback: entries might be nested
+      else if (Array.isArray(res.data.data.entries)) {
+        rankings = res.data.data.entries
+        console.log('getCourseLeaderboard: Found entries array with', rankings.length, 'entries')
+      } else {
+        console.warn('getCourseLeaderboard: Unexpected data format:', res.data.data)
+      }
+    } else {
+      console.warn('getCourseLeaderboard: Response not successful or missing data:', res.data)
+    }
+    
+    if (rankings.length === 0) {
+      console.log('getCourseLeaderboard: No rankings found, returning empty array')
+      return []
+    }
+    
+    const mapped = rankings.map((r: any) => {
+      const userName = r.user?.name 
+        || (r.firstName || r.lastName ? `${r.firstName || ''} ${r.lastName || ''}`.trim() : 'Unknown')
+        || 'Unknown'
+      
+      return {
+        rank: r.rank ?? 0,
+        userId: r.user?.id || r.userId,
+        userName: userName,
+        score: r.score ?? 0,
+        totalTime: r.totalTime || r.averageTimeMs,
+      }
+    })
+    
+    console.log('getCourseLeaderboard: Mapped', mapped.length, 'entries')
+    return mapped
+  } catch (error: any) {
+    console.error('getCourseLeaderboard: Error fetching course leaderboard:', {
+      courseId,
+      error: error?.message,
+      status: error?.response?.status,
+      statusText: error?.response?.statusText,
+      data: error?.response?.data,
+      fullError: error
+    })
+    
+    if (error?.response?.status === 404) {
+      console.warn('getCourseLeaderboard: Course leaderboard not found (404) for course:', courseId)
+    } else if (error?.response?.status === 500) {
+      console.error('getCourseLeaderboard: Server error (500) for course:', courseId)
+    }
+    
+    return []
+  }
 }
 
 export async function getEvaluationLeaderboard(evaluationId: string, limit = 50): Promise<LeaderboardRow[]> {
@@ -55,12 +125,26 @@ export async function getEvaluationLeaderboard(evaluationId: string, limit = 50)
 }
 
 export async function listCourses() {
-  const res = await requestQueue.add(() => 
-    api.get('/courses?limit=100')
-  )
-  // Backend returns { success, data } where data may be array or wrapped
-  const data = res.data?.data
-  return Array.isArray(data) ? data : data?.courses || []
+  try {
+    const res = await requestQueue.add(() => 
+      api.get('/courses?limit=100')
+    )
+    // Backend returns { success, data } where data may be array or wrapped
+    const data = res.data?.data
+    const courses = Array.isArray(data) ? data : data?.courses || []
+    
+    // Ensure all courses have required fields
+    return courses.map((c: any) => ({
+      id: c.id || c._id || '',
+      name: c.name || '',
+      code: c.code || '',
+      title: c.title || c.name || '',
+      ...c
+    }))
+  } catch (error: any) {
+    console.error('Failed to fetch courses:', error)
+    return []
+  }
 }
 
 export async function listEvaluations() {

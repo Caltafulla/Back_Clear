@@ -41,12 +41,23 @@ export default function LeaderboardPage() {
     queryKey: ['leaderboard', tab, selectedId],
     queryFn: async () => {
       if (!selectedId) return []
-      if (tab === 'challenge') return getChallengeLeaderboard(selectedId)
-      if (tab === 'course') return getCourseLeaderboard(selectedId)
-      return getEvaluationLeaderboard(selectedId)
+      try {
+        if (tab === 'challenge') return await getChallengeLeaderboard(selectedId)
+        if (tab === 'course') {
+          console.log('Fetching course leaderboard for courseId:', selectedId)
+          const result = await getCourseLeaderboard(selectedId)
+          console.log('Course leaderboard result:', result)
+          return result
+        }
+        return await getEvaluationLeaderboard(selectedId)
+      } catch (error) {
+        console.error('Error fetching leaderboard:', error)
+        return []
+      }
     },
     enabled: !!selectedId,
     staleTime: 30000,
+    retry: 1,
   })
 
   useEffect(() => {
@@ -80,7 +91,8 @@ export default function LeaderboardPage() {
       return challenges.find((c: any) => c.id === selectedId)
     }
     if (tab === 'course') {
-      return courses.find((c: any) => c.id === selectedId)
+      const course = courses.find((c: any) => c.id === selectedId)
+      return course
     }
     return evaluations.find((e: any) => e.id === selectedId)
   }, [selectedId, tab, challenges, courses, evaluations])
@@ -146,11 +158,16 @@ export default function LeaderboardPage() {
                   </option>
                 ))}
               {tab === 'course' &&
-                courses.map((c: any) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title || c.name || c.id}
-                  </option>
-                ))}
+                courses.map((c: any) => {
+                  const displayName = c.name 
+                    ? (c.code ? `${c.code} - ${c.name}` : c.name)
+                    : c.title || c.id
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {displayName}
+                    </option>
+                  )
+                })}
               {tab === 'evaluation' &&
                 evaluations.map((ev: any) => (
                   <option key={ev.id} value={ev.id}>
@@ -164,6 +181,14 @@ export default function LeaderboardPage() {
                   <Link to={`/challenges/${selectedId}`} className={styles.viewLink}>
                     View Challenge →
                   </Link>
+                )}
+                {tab === 'course' && selectedItem && (
+                  <div className={styles.courseInfo}>
+                    <span className={styles.courseName}>
+                      {selectedItem.code ? `${selectedItem.code} - ` : ''}
+                      {selectedItem.name || selectedItem.title || 'Course'}
+                    </span>
+                  </div>
                 )}
               </div>
             )}
@@ -188,7 +213,28 @@ export default function LeaderboardPage() {
           <div className={styles.errorState}>
             <span>❌</span>
             <h3>Failed to load leaderboard</h3>
-            <p>Please try again later</p>
+            <p>
+              {leaderboardQuery.error instanceof Error 
+                ? leaderboardQuery.error.message 
+                : 'Please try again later'}
+            </p>
+            {leaderboardQuery.error && (
+              <details style={{ marginTop: '16px', textAlign: 'left', maxWidth: '600px' }}>
+                <summary style={{ cursor: 'pointer', color: 'var(--primary-600)' }}>
+                  Error details
+                </summary>
+                <pre style={{ 
+                  marginTop: '8px', 
+                  padding: '12px', 
+                  background: 'var(--gray-100)', 
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  overflow: 'auto'
+                }}>
+                  {JSON.stringify(leaderboardQuery.error, null, 2)}
+                </pre>
+              </details>
+            )}
           </div>
         ) : (leaderboardQuery.data || []).length === 0 ? (
           <div className={styles.emptyState}>

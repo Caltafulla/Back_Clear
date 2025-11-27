@@ -117,6 +117,18 @@
   text-decoration: underline;
 }
 
+.courseInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.courseName {
+  font-size: var(--text-sm);
+  color: var(--gray-700);
+  font-weight: var(--font-weight-medium);
+}
+
 .loadingSelector {
   display: flex;
   align-items: center;
