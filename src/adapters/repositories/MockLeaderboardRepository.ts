@@ -1,8 +1,8 @@
-import { ILeaderboardRepository } from '../../domain/repositories/ILeaderboardRepository';
+import { ILeaderboardRepository, LeaderboardOptions } from '../../domain/repositories/ILeaderboardRepository';
 import { LeaderboardEntry, ChallengeLeaderboard, CourseLeaderboard, EvaluationLeaderboard } from '../../domain/entities/Leaderboard';
 
 export class MockLeaderboardRepository implements ILeaderboardRepository {
-  async getChallengeLeaderboard(challengeId: string, limit: number = 50): Promise<ChallengeLeaderboard> {
+  async getChallengeLeaderboard(challengeId: string, limit: number = 50, _options?: LeaderboardOptions): Promise<ChallengeLeaderboard> {
     // Mock implementation
     return {
       challengeId,
@@ -12,7 +12,7 @@ export class MockLeaderboardRepository implements ILeaderboardRepository {
     };
   }
 
-  async getCourseLeaderboard(courseId: string, limit: number = 50): Promise<CourseLeaderboard> {
+  async getCourseLeaderboard(courseId: string, limit: number = 50, _options?: LeaderboardOptions): Promise<CourseLeaderboard> {
     // Mock implementation
     return {
       courseId,
@@ -22,7 +22,7 @@ export class MockLeaderboardRepository implements ILeaderboardRepository {
     };
   }
 
-  async getEvaluationLeaderboard(evaluationId: string, limit: number = 50): Promise<EvaluationLeaderboard> {
+  async getEvaluationLeaderboard(evaluationId: string, limit: number = 50, _options?: LeaderboardOptions): Promise<EvaluationLeaderboard> {
     // Mock implementation
     return {
       evaluationId,

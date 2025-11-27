@@ -1,4 +1,4 @@
-import { ILeaderboardRepository } from '../domain/repositories/ILeaderboardRepository';
+import { ILeaderboardRepository, LeaderboardOptions } from '../domain/repositories/ILeaderboardRepository';
 import { Submission } from '../domain/entities/Submission';
 import { IChallengeRepository } from '../domain/repositories/IChallengeRepository';
 import { ICourseRepository } from '../domain/repositories/ICourseRepository';
@@ -18,16 +18,16 @@ export class LeaderboardService {
     }
   }
 
-  async getChallengeLeaderboard(challengeId: string) {
-    return this.leaderboardRepository.getChallengeLeaderboard(challengeId);
+  async getChallengeLeaderboard(challengeId: string, options?: LeaderboardOptions) {
+    return this.leaderboardRepository.getChallengeLeaderboard(challengeId, 50, options);
   }
 
-  async getCourseLeaderboard(courseId: string) {
-    return this.leaderboardRepository.getCourseLeaderboard(courseId);
+  async getCourseLeaderboard(courseId: string, options?: LeaderboardOptions) {
+    return this.leaderboardRepository.getCourseLeaderboard(courseId, 50, options);
   }
 
-  async getEvaluationLeaderboard(evaluationId: string) {
-    return this.leaderboardRepository.getEvaluationLeaderboard(evaluationId);
+  async getEvaluationLeaderboard(evaluationId: string, options?: LeaderboardOptions) {
+    return this.leaderboardRepository.getEvaluationLeaderboard(evaluationId, 50, options);
   }
 
   async updateCourseLeaderboardForSubmission(submission: Submission) {

@@ -7,6 +7,11 @@ export interface LeaderboardEntry {
   acceptedSubmissions: number;
   averageTimeMs: number;
   rank: number;
+  /**
+   * Used for tie-breaking when score and time are equal.
+   * Earlier (older) dates should rank higher.
+   */
+  firstSolvedAt?: Date;
 }
 
 export interface ChallengeLeaderboard {
