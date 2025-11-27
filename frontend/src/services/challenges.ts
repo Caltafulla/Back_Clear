@@ -25,24 +25,60 @@ function toBackendDifficulty(difficulty: string): string {
 
 // Helper to normalize challenge from backend format
 function normalizeChallenge(challenge: any): Challenge {
-  // Normalize status: backend uses lowercase 'published', frontend expects uppercase
+  if (!challenge) return challenge
+
   const normalizeStatus = (status: string): Challenge['status'] => {
-    const upper = status.toUpperCase()
+    const upper = status?.toUpperCase?.() || 'DRAFT'
     if (upper === 'DRAFT' || upper === 'PUBLISHED' || upper === 'ARCHIVED') {
       return upper as Challenge['status']
     }
-    return status as Challenge['status']
+    return 'DRAFT'
   }
 
-  return {
-    ...challenge,
-    difficulty: normalizeDifficulty(challenge.difficulty),
+  const normalizedChallenge: Challenge = {
+    id: (challenge.id || challenge._id || challenge.challengeId || '').toString(),
+    title: challenge.title || 'Untitled challenge',
+    description: challenge.description || '',
+    difficulty: normalizeDifficulty(challenge.difficulty || 'Easy'),
+    tags: Array.isArray(challenge.tags) ? challenge.tags : [],
+    timeLimit: challenge.timeLimit ?? 1000,
+    memoryLimit: challenge.memoryLimit ?? 256,
     status: normalizeStatus(challenge.status || 'DRAFT'),
-    testCases: challenge.testCases?.map((tc: any) => ({
-      input: tc.input,
-      output: tc.expectedOutput || tc.output, // Backend uses expectedOutput
-    })) || [],
+    testCases: Array.isArray(challenge.testCases)
+      ? challenge.testCases.map((tc: any) => ({
+          input: tc.input,
+          output: tc.expectedOutput || tc.output || '',
+        }))
+      : [],
+    courseId: challenge.courseId,
+    createdBy: challenge.createdBy,
+    createdAt: challenge.createdAt,
+    updatedAt: challenge.updatedAt,
   }
+
+  return normalizedChallenge
+}
+
+function extractChallengeList(raw: any): any[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  if (Array.isArray(raw.challenges)) return raw.challenges
+  if (Array.isArray(raw.data)) return raw.data
+  if (Array.isArray(raw.items)) return raw.items
+  return []
+}
+
+function dedupeChallenges(challenges: Challenge[]): Challenge[] {
+  const map = new Map<string, Challenge>()
+  challenges.forEach((challenge) => {
+    if (!challenge) return
+    const key = (challenge.id || challenge.title || '').toString().toLowerCase()
+    if (!key) return
+    if (!map.has(key)) {
+      map.set(key, challenge)
+    }
+  })
+  return Array.from(map.values())
 }
 
 export async function getChallenges(filters?: {
@@ -58,13 +94,13 @@ export async function getChallenges(filters?: {
         const searchRes = await requestQueue.add(() => 
           api.get(`/challenges/search?q=${encodeURIComponent(filters.search)}`)
         )
-        let challenges = Array.isArray(searchRes.data?.data) ? searchRes.data.data : []
+        let challenges = extractChallengeList(searchRes.data?.data)
         challenges = challenges.map(normalizeChallenge)
         
         // Apply difficulty filter client-side if provided
         if (filters?.difficulty) {
-          const targetDifficulty = toBackendDifficulty(filters.difficulty)
-          challenges = challenges.filter(c => {
+        const targetDifficulty = toBackendDifficulty(filters.difficulty)
+        challenges = challenges.filter(c => {
             // Normalize challenge difficulty for comparison
             const challengeDiff = c.difficulty === 'EASY' ? 'Easy' : 
                                  c.difficulty === 'MEDIUM' ? 'Medium' : 
@@ -78,6 +114,7 @@ export async function getChallenges(filters?: {
           c.status === 'PUBLISHED' || c.status === 'published'
         )
         
+        challenges = dedupeChallenges(challenges)
         return challenges
       } catch (searchError) {
         console.error('Search failed, falling back to regular list:', searchError)
@@ -88,8 +125,11 @@ export async function getChallenges(filters?: {
     // Regular list endpoint - backend uses if-else, so we need to handle filtering client-side
     const params = new URLSearchParams()
     
-    // Get all published challenges first (backend prioritizes status)
-    params.append('status', 'published')
+    // Optional filters
+    // Pass through filters supported by backend
+    if (filters?.difficulty) {
+      params.append('difficulty', toBackendDifficulty(filters.difficulty))
+    }
     
     if (filters?.limit) params.append('limit', filters.limit.toString())
     if (filters?.offset) params.append('offset', filters.offset.toString())
@@ -97,9 +137,8 @@ export async function getChallenges(filters?: {
     const res = await requestQueue.add(() => 
       api.get(`/challenges?${params.toString()}`)
     )
-    
-    // Backend returns { success: true, data: [...] } directly, not nested in challenges
-    let challenges = Array.isArray(res.data?.data) ? res.data.data : []
+
+    let challenges = extractChallengeList(res.data?.data)
     
     if (!res.data?.success) {
       console.warn('API returned unsuccessful response:', res.data)
@@ -107,17 +146,13 @@ export async function getChallenges(filters?: {
     
     challenges = challenges.map(normalizeChallenge)
     
-    // Always filter by published status client-side (safety check)
-    challenges = challenges.filter(c => 
-      c.status === 'PUBLISHED' || c.status === 'published'
-    )
-    
-    // Apply difficulty filter client-side (backend doesn't combine with status)
+    // Apply difficulty filter client-side if backend ignored it
     if (filters?.difficulty) {
       const targetDifficulty = filters.difficulty
       challenges = challenges.filter(c => c.difficulty === targetDifficulty)
     }
     
+    challenges = dedupeChallenges(challenges)
     return challenges
   } catch (error: any) {
     console.error('Failed to fetch challenges:', error)
