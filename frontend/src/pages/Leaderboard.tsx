@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { getChallenges } from '../services/challenges'
 import {
   getChallengeLeaderboard,
@@ -9,13 +10,17 @@ import {
   listEvaluations,
   type LeaderboardRow
 } from '../services/leaderboard'
+import { useAuthStore } from '../stores/auth-store'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import Badge from '../components/ui/Badge'
+import styles from '../styles/Leaderboard.module.css'
 
 type Tab = 'challenge' | 'course' | 'evaluation'
 
 export default function LeaderboardPage() {
-  const [tab, setTab] = React.useState<Tab>('challenge')
-  const [selectedId, setSelectedId] = React.useState<string>('')
+  const user = useAuthStore((state) => state.user)
+  const [tab, setTab] = useState<Tab>('challenge')
+  const [selectedId, setSelectedId] = useState<string>('')
 
   const { data: challenges = [], isLoading: loadingChallenges } = useQuery({
     queryKey: ['challenges', 'leaderboard'],
@@ -41,133 +46,208 @@ export default function LeaderboardPage() {
       return getEvaluationLeaderboard(selectedId)
     },
     enabled: !!selectedId,
+    staleTime: 30000,
   })
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Reset selection when tab changes
     setSelectedId('')
   }, [tab])
 
   const isLoadingLists = loadingChallenges || loadingCourses || loadingEvaluations
 
-  return (
-    <div style={{ padding: 24 }}>
-      <h1 style={{ marginBottom: 8 }}>Leaderboard</h1>
-      <p style={{ marginTop: 0, color: 'var(--gray-600)' }}>
-        Select a context to view rankings.
-      </p>
+  const getRankIcon = (rank: number) => {
+    if (rank === 1) return '🥇'
+    if (rank === 2) return '🥈'
+    if (rank === 3) return '🥉'
+    return null
+  }
 
-      <div style={{ display: 'flex', gap: 8, margin: '16px 0' }}>
+  const getRankClass = (rank: number) => {
+    if (rank === 1) return styles.rankGold
+    if (rank === 2) return styles.rankSilver
+    if (rank === 3) return styles.rankBronze
+    return ''
+  }
+
+  const isCurrentUser = (userId?: string) => {
+    return userId && user?.id === userId
+  }
+
+  const selectedItem = React.useMemo(() => {
+    if (!selectedId) return null
+    if (tab === 'challenge') {
+      return challenges.find((c: any) => c.id === selectedId)
+    }
+    if (tab === 'course') {
+      return courses.find((c: any) => c.id === selectedId)
+    }
+    return evaluations.find((e: any) => e.id === selectedId)
+  }, [selectedId, tab, challenges, courses, evaluations])
+
+  return (
+    <div className={styles.leaderboardPage}>
+      <div className={styles.header}>
+        <div>
+          <h1 className={styles.title}>Leaderboard</h1>
+          <p className={styles.subtitle}>
+            Compete with others and see how you rank
+          </p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className={styles.tabs}>
         <button
-          className="btn"
-          data-active={tab === 'challenge'}
+          className={`${styles.tab} ${tab === 'challenge' ? styles.tabActive : ''}`}
           onClick={() => setTab('challenge')}
         >
-          Challenge
+          <span className={styles.tabIcon}>💻</span>
+          <span>Challenge</span>
         </button>
         <button
-          className="btn"
-          data-active={tab === 'course'}
+          className={`${styles.tab} ${tab === 'course' ? styles.tabActive : ''}`}
           onClick={() => setTab('course')}
         >
-          Course
+          <span className={styles.tabIcon}>🏫</span>
+          <span>Course</span>
         </button>
         <button
-          className="btn"
-          data-active={tab === 'evaluation'}
+          className={`${styles.tab} ${tab === 'evaluation' ? styles.tabActive : ''}`}
           onClick={() => setTab('evaluation')}
         >
-          Evaluation
+          <span className={styles.tabIcon}>📝</span>
+          <span>Evaluation</span>
         </button>
       </div>
 
-      {isLoadingLists ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <LoadingSpinner />
-          <span>Loading options...</span>
-        </div>
-      ) : (
-        <div style={{ margin: '12px 0' }}>
-          {tab === 'challenge' && (
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-            >
-              <option value="">Select challenge...</option>
-              {challenges.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-          )}
-          {tab === 'course' && (
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-            >
-              <option value="">Select course...</option>
-              {courses.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.title || c.name || c.id}
-                </option>
-              ))}
-            </select>
-          )}
-          {tab === 'evaluation' && (
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-            >
-              <option value="">Select evaluation...</option>
-              {evaluations.map((ev: any) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.title || ev.name || ev.id}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
-
-      <div style={{ marginTop: 16 }}>
-        {!selectedId ? (
-          <div style={{ color: 'var(--gray-600)' }}>
-            Choose an item to load rankings.
-          </div>
-        ) : leaderboardQuery.isLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <LoadingSpinner />
-            <span>Loading leaderboard...</span>
-          </div>
-        ) : leaderboardQuery.isError ? (
-          <div style={{ color: 'var(--error)' }}>
-            Failed to load leaderboard.
-          </div>
-        ) : (leaderboardQuery.data || []).length === 0 ? (
-          <div style={{ color: 'var(--gray-600)' }}>
-            No data available.
+      {/* Selector Card */}
+      <div className={styles.selectorCard}>
+        {isLoadingLists ? (
+          <div className={styles.loadingSelector}>
+            <LoadingSpinner size="sm" />
+            <span>Loading options...</span>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className={styles.selectorContent}>
+            <label className={styles.selectorLabel}>
+              Select {tab === 'challenge' ? 'Challenge' : tab === 'course' ? 'Course' : 'Evaluation'}
+            </label>
+            <select
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              className={styles.selector}
+            >
+              <option value="">Choose one...</option>
+              {tab === 'challenge' &&
+                challenges.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              {tab === 'course' &&
+                courses.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title || c.name || c.id}
+                  </option>
+                ))}
+              {tab === 'evaluation' &&
+                evaluations.map((ev: any) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.title || ev.name || ev.id}
+                  </option>
+                ))}
+            </select>
+            {selectedItem && (
+              <div className={styles.selectedInfo}>
+                {tab === 'challenge' && (
+                  <Link to={`/challenges/${selectedId}`} className={styles.viewLink}>
+                    View Challenge →
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Leaderboard Table */}
+      <div className={styles.leaderboardContainer}>
+        {!selectedId ? (
+          <div className={styles.emptyState}>
+            <span className={styles.emptyIcon}>🏆</span>
+            <h3>Select a {tab} to view rankings</h3>
+            <p>Choose from the dropdown above to see the leaderboard</p>
+          </div>
+        ) : leaderboardQuery.isLoading ? (
+          <div className={styles.loadingContainer}>
+            <LoadingSpinner size="lg" />
+            <p>Loading leaderboard...</p>
+          </div>
+        ) : leaderboardQuery.isError ? (
+          <div className={styles.errorState}>
+            <span>❌</span>
+            <h3>Failed to load leaderboard</h3>
+            <p>Please try again later</p>
+          </div>
+        ) : (leaderboardQuery.data || []).length === 0 ? (
+          <div className={styles.emptyState}>
+            <span className={styles.emptyIcon}>📊</span>
+            <h3>No rankings yet</h3>
+            <p>Be the first to submit a solution!</p>
+          </div>
+        ) : (
+          <div className={styles.tableWrapper}>
+            <table className={styles.leaderboardTable}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '8px 12px' }}>Rank</th>
-                  <th style={{ textAlign: 'left', padding: '8px 12px' }}>User</th>
-                  <th style={{ textAlign: 'left', padding: '8px 12px' }}>Score</th>
-                  <th style={{ textAlign: 'left', padding: '8px 12px' }}>Avg Time (ms)</th>
+                  <th className={styles.rankHeader}>Rank</th>
+                  <th className={styles.userHeader}>User</th>
+                  <th className={styles.scoreHeader}>Score</th>
+                  <th className={styles.timeHeader}>Avg Time</th>
                 </tr>
               </thead>
               <tbody>
-                {(leaderboardQuery.data || []).map((row) => (
-                  <tr key={`${row.userId || row.userName}-${row.rank}`}>
-                    <td style={{ padding: '8px 12px' }}>{row.rank}</td>
-                    <td style={{ padding: '8px 12px' }}>{row.userName}</td>
-                    <td style={{ padding: '8px 12px' }}>{row.score}</td>
-                    <td style={{ padding: '8px 12px' }}>{row.totalTime ?? '-'}</td>
-                  </tr>
-                ))}
+                {(leaderboardQuery.data || []).map((row) => {
+                  const rankIcon = getRankIcon(row.rank)
+                  const rankClass = getRankClass(row.rank)
+                  const isUser = isCurrentUser(row.userId)
+                  
+                  return (
+                    <tr
+                      key={`${row.userId || row.userName}-${row.rank}`}
+                      className={`${rankClass} ${isUser ? styles.currentUser : ''}`}
+                    >
+                      <td className={styles.rankCell}>
+                        <div className={styles.rankContent}>
+                          {rankIcon && <span className={styles.rankIcon}>{rankIcon}</span>}
+                          <span className={styles.rankNumber}>{row.rank}</span>
+                        </div>
+                      </td>
+                      <td className={styles.userCell}>
+                        <div className={styles.userInfo}>
+                          <div className={styles.userAvatar}>
+                            {row.userName.charAt(0).toUpperCase()}
+                          </div>
+                          <span className={styles.userName}>
+                            {row.userName}
+                            {isUser && <Badge status="ACCEPTED" variant="status">You</Badge>}
+                          </span>
+                        </div>
+                      </td>
+                      <td className={styles.scoreCell}>
+                        <div className={styles.scoreValue}>{row.score}</div>
+                      </td>
+                      <td className={styles.timeCell}>
+                        {row.totalTime ? (
+                          <span className={styles.timeValue}>{row.totalTime}ms</span>
+                        ) : (
+                          <span className={styles.timeValue}>-</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -176,4 +256,3 @@ export default function LeaderboardPage() {
     </div>
   )
 }
-

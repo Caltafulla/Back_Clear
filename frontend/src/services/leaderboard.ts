@@ -1,4 +1,5 @@
 import api from './api'
+import { requestQueue } from '../utils/requestQueue'
 
 export type LeaderboardRow = {
   rank: number
@@ -10,7 +11,9 @@ export type LeaderboardRow = {
 
 export async function getChallengeLeaderboard(challengeId: string, limit = 50): Promise<LeaderboardRow[]> {
   if (!challengeId) return []
-  const res = await api.get(`/leaderboard/challenge/${challengeId}?limit=${limit}`)
+  const res = await requestQueue.add(() => 
+    api.get(`/leaderboard/challenge/${challengeId}?limit=${limit}`)
+  )
   const rankings = res.data?.data?.rankings || []
   return rankings.map((r: any) => ({
     rank: r.rank ?? 0,
@@ -23,7 +26,9 @@ export async function getChallengeLeaderboard(challengeId: string, limit = 50): 
 
 export async function getCourseLeaderboard(courseId: string, limit = 50): Promise<LeaderboardRow[]> {
   if (!courseId) return []
-  const res = await api.get(`/leaderboard/course/${courseId}?limit=${limit}`)
+  const res = await requestQueue.add(() => 
+    api.get(`/leaderboard/course/${courseId}?limit=${limit}`)
+  )
   const rankings = res.data?.data?.rankings || []
   return rankings.map((r: any) => ({
     rank: r.rank ?? 0,
@@ -36,7 +41,9 @@ export async function getCourseLeaderboard(courseId: string, limit = 50): Promis
 
 export async function getEvaluationLeaderboard(evaluationId: string, limit = 50): Promise<LeaderboardRow[]> {
   if (!evaluationId) return []
-  const res = await api.get(`/leaderboard/evaluation/${evaluationId}?limit=${limit}`)
+  const res = await requestQueue.add(() => 
+    api.get(`/leaderboard/evaluation/${evaluationId}?limit=${limit}`)
+  )
   const entries = res.data?.data?.entries || []
   return entries.map((e: any) => ({
     rank: e.rank ?? 0,
@@ -48,14 +55,18 @@ export async function getEvaluationLeaderboard(evaluationId: string, limit = 50)
 }
 
 export async function listCourses() {
-  const res = await api.get('/courses?limit=100')
+  const res = await requestQueue.add(() => 
+    api.get('/courses?limit=100')
+  )
   // Backend returns { success, data } where data may be array or wrapped
   const data = res.data?.data
   return Array.isArray(data) ? data : data?.courses || []
 }
 
 export async function listEvaluations() {
-  const res = await api.get('/evaluations?limit=100')
+  const res = await requestQueue.add(() => 
+    api.get('/evaluations?limit=100')
+  )
   const data = res.data?.data
   return Array.isArray(data) ? data : data?.evaluations || []
 }
