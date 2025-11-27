@@ -333,6 +333,7 @@ export default function CourseManagement() {
           <table className={styles.table}>
             <thead className={styles.tableHeader}>
               <tr>
+                <th>ID</th>
                 <th>Name</th>
                 <th>Code</th>
                 <th>Period</th>
@@ -343,6 +344,7 @@ export default function CourseManagement() {
             <tbody className={styles.tableBody}>
               {filteredCourses.map((c: any) => (
                 <tr key={c.id}>
+                  <td className={styles.idCell}>{c.id || '-'}</td>
                   <td className={styles.nameCell}>{c.name || 'Untitled'}</td>
                   <td className={styles.codeCell}>{c.code || '-'}</td>
                   <td>{c.period || '-'}</td>
