@@ -37,7 +37,13 @@ export default function Header({ collapsed = false, onToggle }: Props) {
 
   const navItems = user?.role === 'ADMIN' 
     ? [
-        { path: '/dashboard', label: 'Dashboard' },
+        { path: '/admin', label: 'Dashboard' },
+        { path: '/challenges', label: 'Challenges' },
+        { path: '/leaderboard', label: 'Leaderboard' },
+      ]
+    : user?.role === 'PROFESSOR' 
+    ? [
+        { path: '/professor', label: 'Dashboard' },
         { path: '/challenges', label: 'Challenges' },
         { path: '/leaderboard', label: 'Leaderboard' },
       ]

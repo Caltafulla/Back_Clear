@@ -41,7 +41,8 @@ export default function LoginPage() {
       setUser(data.user)
       // Small delay to ensure state is updated
       setTimeout(() => {
-        if (data.user.role === 'ADMIN') navigate('/dashboard')
+        if (data.user.role === 'ADMIN') navigate('/admin')
+        else if (data.user.role === 'PROFESSOR') navigate('/professor')
         else navigate('/dashboard')
       }, 100)
     } catch (err: any) {
@@ -133,9 +134,9 @@ export default function LoginPage() {
           </button>
 
           <div className={styles.footerLinks}>
-            <a href="#" className={styles.link}>Forgot password?</a>
+            <a href="/register" className={styles.link}>Create account</a>
             <span className={styles.separator}>•</span>
-            <a href="#" className={styles.link}>Need help?</a>
+            <a href="#" className={styles.link}>Forgot password?</a>
           </div>
         </form>
       </div>

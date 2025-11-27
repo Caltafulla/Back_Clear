@@ -27,6 +27,21 @@ export async function login(email: string, password: string) {
   return data
 }
 
+export async function register(payload: {
+  email: string
+  password: string
+  firstName: string
+  lastName: string
+  role?: 'STUDENT' | 'ADMIN' | 'PROFESSOR'
+}) {
+  const res = await api.post('/auth/register', payload)
+  const data = res.data?.data
+  if (data?.user) {
+    data.user = normalizeUser(data.user)
+  }
+  return data
+}
+
 export async function getProfile(): Promise<User | null> {
   try {
     const res = await api.get('/auth/me')

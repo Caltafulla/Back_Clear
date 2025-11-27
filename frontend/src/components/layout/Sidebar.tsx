@@ -30,21 +30,37 @@ const Sidebar: React.FC<{ collapsed?: boolean }> = ({ collapsed = false }) => {
     {
       section: 'Dashboard',
       items: [
-        { path: '/dashboard', label: 'Overview', icon: '📊' },
+        { path: '/admin', label: 'Overview', icon: '📊' },
         { path: '/metrics', label: 'Metrics', icon: '📈' },
       ]
     },
     {
       section: 'Management',
       items: [
-        { path: '/challenges', label: 'Challenges', icon: '💻' },
         { path: '/challenge-management', label: 'Manage Challenges', icon: '⚙️' },
-        { path: '/user-management', label: 'Users', icon: '👥' },
+        { path: '/course-management', label: 'Manage Courses', icon: '🏫' },
+        { path: '/evaluation-management', label: 'Manage Evaluations', icon: '📝' },
       ]
     }
   ]
 
-  const menu = user?.role === 'ADMIN' ? adminMenu : studentMenu
+  const professorMenu = [
+    {
+      section: 'Dashboard',
+      items: [
+        { path: '/professor', label: 'Overview', icon: '📊' },
+        { path: '/metrics', label: 'Metrics', icon: '📈' },
+      ]
+    },
+    {
+      section: 'Management',
+      items: [
+        { path: '/professor/evaluations', label: 'Manage Evaluations', icon: '📝' },
+      ]
+    }
+  ]
+
+  const menu = user?.role === 'ADMIN' ? adminMenu : user?.role === 'PROFESSOR' ? professorMenu : studentMenu
 
   return (
     <aside className={styles.sidebar} data-collapsed={collapsed}>

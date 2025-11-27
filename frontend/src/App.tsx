@@ -10,6 +10,13 @@ import { useAuthStore } from './stores/auth-store'
 import type { ReactNode } from 'react'
 import type { Role } from './types/api'
 import LeaderboardPage from './pages/Leaderboard'
+import RegisterPage from './pages/Register'
+import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminMetrics from './pages/admin/Metrics'
+import ChallengeManagement from './pages/admin/ChallengeManagement'
+import CourseManagement from './pages/admin/CourseManagement'
+import EvaluationManagement from './pages/admin/EvaluationManagement'
+import ProfessorDashboard from './pages/professor/ProfessorDashboard'
 
 function RequireAuth({ children, roles }: { children: ReactNode; roles?: Role[] }) {
   const user = useAuthStore((state: import('./stores/auth-store').AuthState) => state.user)
@@ -87,6 +94,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route
         path="/dashboard"
         element={
@@ -127,8 +135,80 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* Admin routes */}
+      <Route
+        path="/admin"
+        element={
+          <RequireAuth roles={["ADMIN"]}>
+            <Layout>
+              <AdminDashboard />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/metrics"
+        element={
+          <RequireAuth roles={["ADMIN", "PROFESSOR"]}>
+            <Layout>
+              <AdminMetrics />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/challenge-management"
+        element={
+          <RequireAuth roles={["ADMIN"]}>
+            <Layout>
+              <ChallengeManagement />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/course-management"
+        element={
+          <RequireAuth roles={["ADMIN"]}>
+            <Layout>
+              <CourseManagement />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/evaluation-management"
+        element={
+          <RequireAuth roles={["ADMIN"]}>
+            <Layout>
+              <EvaluationManagement />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      {/* Professor routes */}
+      <Route
+        path="/professor"
+        element={
+          <RequireAuth roles={["PROFESSOR"]}>
+            <Layout>
+              <ProfessorDashboard />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/professor/evaluations"
+        element={
+          <RequireAuth roles={["PROFESSOR"]}>
+            <Layout>
+              <EvaluationManagement />
+            </Layout>
+          </RequireAuth>
+        }
+      />
       <Route path="/test-layout" element={<Layout><div style={{ padding: 24 }}>Test Layout OK</div></Layout>} />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }
