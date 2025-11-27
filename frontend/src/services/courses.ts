@@ -37,3 +37,8 @@ export async function enrollStudent(courseId: string, studentId: string) {
   return res.data?.data || {}
 }
 
+export async function enrollStudentByEmail(courseId: string, email: string) {
+  const res = await api.post(`/courses/${courseId}/enroll-by-email`, { email })
+  return res.data?.data || {}
+}
+

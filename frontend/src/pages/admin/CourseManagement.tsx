@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getCourses, createCourse, updateCourse, deleteCourse } from '../../services/courses'
+import { getCourses, createCourse, updateCourse, deleteCourse, enrollStudentByEmail } from '../../services/courses'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import styles from '../../styles/CourseManagement.module.css'
 
@@ -10,6 +10,7 @@ export default function CourseManagement() {
   const [editingCourse, setEditingCourse] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [periodFilter, setPeriodFilter] = useState<string>('')
+  const [enrollEmail, setEnrollEmail] = useState<string>('')
 
   const { data: courses = [], isLoading, refetch } = useQuery({
     queryKey: ['admin', 'courses'],
@@ -195,6 +196,26 @@ export default function CourseManagement() {
     onError: (error: any) => {
       console.error('Failed to delete course:', error)
       alert(error?.response?.data?.message || error?.message || 'Failed to delete course')
+    }
+  })
+
+  const enrollMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingCourse?.id) throw new Error('No course selected')
+      const email = enrollEmail.trim()
+      if (!email) throw new Error('Email is required')
+      return await enrollStudentByEmail(editingCourse.id, email)
+    },
+    onSuccess: async () => {
+      setEnrollEmail('')
+      await qc.invalidateQueries({ queryKey: ['admin', 'courses'] })
+      await qc.refetchQueries({ queryKey: ['admin', 'courses'] })
+      await refetch()
+      alert('Student enrolled successfully')
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.message || error?.message || 'Failed to enroll student'
+      alert(msg)
     }
   })
 
@@ -421,6 +442,33 @@ export default function CourseManagement() {
                   />
                 </div>
               </div>
+
+              {editingCourse && (
+                <div className={styles.formRow}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.label}>Enroll Student (Email)</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        className={styles.input}
+                        value={enrollEmail}
+                        onChange={(e) => setEnrollEmail(e.target.value)}
+                        placeholder="Enter student email"
+                      />
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => enrollMutation.mutate()}
+                        disabled={enrollMutation.isPending || !enrollEmail.trim()}
+                      >
+                        {enrollMutation.isPending ? 'Enrolling...' : 'Enroll'}
+                      </button>
+                    </div>
+                    <div className={styles.helpText}>
+                      Enter the student's email to enroll them in this course.
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className={styles.modalFooter}>
               <button

@@ -148,6 +148,10 @@ export const CourseSchemas = {
 
   enroll: Joi.object({
     studentId: Joi.string().required()
+  }),
+
+  enrollByEmail: Joi.object({
+    email: Joi.string().email().required()
   })
 };
 

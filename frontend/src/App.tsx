@@ -202,7 +202,7 @@ export default function App() {
       <Route
         path="/course-management"
         element={
-          <RequireAuth roles={["ADMIN"]}>
+          <RequireAuth roles={["ADMIN", "PROFESSOR"]}>
             <Layout>
               <CourseManagement />
             </Layout>

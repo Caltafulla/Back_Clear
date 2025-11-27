@@ -223,6 +223,45 @@ export function createCourseRoutes(
     ErrorHandler.asyncHandler(courseController.enrollStudent.bind(courseController))
   );
 
+  /**
+   * @swagger
+   * /api/courses/{id}/enroll-by-email:
+   *   post:
+   *     summary: Enroll student in course by email
+   *     tags: [Courses]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - email
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 format: email
+   *     responses:
+   *       200:
+   *         description: Student enrolled successfully
+   *       404:
+   *         description: Student not found
+   */
+  router.post(
+    '/:id/enroll-by-email',
+    ValidationMiddleware.validateParams(CommonSchemas.id),
+    ValidationMiddleware.validate(CourseSchemas.enrollByEmail),
+    ErrorHandler.asyncHandler(courseController.enrollStudentByEmail.bind(courseController))
+  );
+
   return router;
 }
 

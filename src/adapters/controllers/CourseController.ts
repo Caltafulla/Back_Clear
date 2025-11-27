@@ -1,11 +1,13 @@
 import { Request, Response } from 'express';
 import { ICourseRepository } from '../../domain/repositories/ICourseRepository';
+import { IUserRepository } from '../../domain/repositories/IUserRepository';
 import { CreateCourseUseCase } from '../../application/use-cases/courses/CreateCourseUseCase';
 
 export class CourseController {
   constructor(
     private createCourseUseCase: CreateCourseUseCase,
-    private courseRepository: ICourseRepository
+    private courseRepository: ICourseRepository,
+    private userRepository: IUserRepository
   ) {}
 
   /**
@@ -409,6 +411,77 @@ export class CourseController {
       res.status(400).json({
         success: false,
         message: error instanceof Error ? error.message : 'Failed to enroll student'
+      });
+    }
+  }
+
+  /**
+   * @swagger
+   * /api/courses/{id}/enroll-by-email:
+   *   post:
+   *     summary: Enroll student in course by email
+   *     tags: [Courses]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - email
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 format: email
+   *     responses:
+   *       200:
+   *         description: Student enrolled successfully
+   *       404:
+   *         description: Student not found
+   *       400:
+   *         description: Validation error
+   */
+  async enrollStudentByEmail(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { email } = req.body as { email?: string };
+
+      if (!id) {
+        res.status(400).json({ success: false, message: 'Course ID is required' });
+        return;
+      }
+      if (!email) {
+        res.status(400).json({ success: false, message: 'Email is required' });
+        return;
+      }
+
+      const user = await this.userRepository.findByEmail(email);
+      if (!user) {
+        res.status(404).json({ success: false, message: 'Student not found with that email' });
+        return;
+      }
+
+      // Check already enrolled
+      const isEnrolled = await this.courseRepository.isStudentEnrolled(id, user.id);
+      if (isEnrolled) {
+        res.status(400).json({ success: false, message: 'Student is already enrolled in this course' });
+        return;
+      }
+
+      const enrollment = await this.courseRepository.enrollStudent(id, user.id);
+      res.status(200).json({ success: true, data: enrollment });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to enroll student by email'
       });
     }
   }
