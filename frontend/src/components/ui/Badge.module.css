@@ -15,6 +15,11 @@
   color: var(--gray-700);
 }
 
+.info {
+  background: var(--primary-100);
+  color: var(--primary-700);
+}
+
 /* Difficulty Badges */
 .difficulty-easy {
   background: #d1fae5;
