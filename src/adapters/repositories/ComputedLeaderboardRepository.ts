@@ -162,7 +162,7 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
       }
 
       const user = await this.userRepo.findById(userId);
-      entries.push({
+      const entry: LeaderboardEntry = {
         userId,
         firstName: user ? user.firstName : 'Unknown',
         lastName: user ? user.lastName : '',
@@ -171,8 +171,11 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
         acceptedSubmissions: accepted,
         averageTimeMs: totalTime,
         rank: 0,
-        firstSolvedAt: earliest || undefined
-      });
+      };
+      if (earliest) {
+        entry.firstSolvedAt = earliest;
+      }
+      entries.push(entry);
     }
 
     // Sort by score desc, total time asc
@@ -264,7 +267,7 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
     const entries: LeaderboardEntry[] = [];
     for (const [userId, agg] of userAggregates.entries()) {
       const user = await this.userRepo.findById(userId);
-      entries.push({
+      const entry: LeaderboardEntry = {
         userId,
         firstName: user ? user.firstName : 'Unknown',
         lastName: user ? user.lastName : '',
@@ -273,9 +276,12 @@ export class ComputedLeaderboardRepository implements ILeaderboardRepository {
         acceptedSubmissions: agg.accepted,
         averageTimeMs: agg.totalTime,
         rank: 0,
-        // For evaluations, use window start as tie-breaker proxy if available
-        firstSolvedAt: start || undefined
-      });
+      };
+      // For evaluations, use window start as tie-breaker proxy if available
+      if (start) {
+        entry.firstSolvedAt = start;
+      }
+      entries.push(entry);
     }
 
     // Sort by score desc, time asc

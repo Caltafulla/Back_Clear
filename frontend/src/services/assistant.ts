@@ -4,8 +4,20 @@ import { requestQueue } from '../utils/requestQueue'
 export type GeneratedChallengeIdea = {
   title: string
   description: string
-  inputs?: string[]
-  outputs?: string[]
+  difficulty?: 'Easy' | 'Medium' | 'Hard'
+  tags?: string[]
+  timeLimit?: number
+  memoryLimit?: number
+  examples?: Array<{
+    input: string
+    output: string
+    explanation: string
+  }>
+  testCases?: Array<{
+    input: string
+    expectedOutput: string
+    isHidden: boolean
+  }>
 }
 
 export type GeneratedTestCase = {
