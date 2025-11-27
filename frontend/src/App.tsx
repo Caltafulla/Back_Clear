@@ -19,6 +19,7 @@ import ChallengeManagement from './pages/admin/ChallengeManagement'
 import CourseManagement from './pages/admin/CourseManagement'
 import EvaluationManagement from './pages/admin/EvaluationManagement'
 import ProfessorDashboard from './pages/professor/ProfessorDashboard'
+import AIAssistantPage from './pages/AIAssistant'
 
 function RequireAuth({ children, roles }: { children: ReactNode; roles?: Role[] }) {
   const user = useAuthStore((state: import('./stores/auth-store').AuthState) => state.user)
@@ -108,6 +109,16 @@ export default function App() {
         }
       />
       <Route
+        path="/assistant"
+        element={
+          <RequireAuth roles={["ADMIN", "PROFESSOR"]}>
+            <Layout>
+              <AIAssistantPage />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/challenges"
         element={
           <RequireAuth>
@@ -181,7 +192,7 @@ export default function App() {
       <Route
         path="/challenge-management"
         element={
-          <RequireAuth roles={["ADMIN"]}>
+          <RequireAuth roles={["ADMIN", "PROFESSOR"]}>
             <Layout>
               <ChallengeManagement />
             </Layout>
