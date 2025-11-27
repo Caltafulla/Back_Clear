@@ -23,7 +23,8 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const data = await login(email, password)
-      if (!data || !data.access_token) {
+      // data should be { user, token }
+      if (!data || !data.token) {
         setError('Invalid response from server')
         setLoading(false)
         return
@@ -34,7 +35,7 @@ export default function LoginPage() {
         return
       }
 
-      localStorage.setItem('access_token', data.access_token)
+      localStorage.setItem('access_token', data.token)
       setUser(data.user)
       if (data.user.role === 'ADMIN') navigate('/admin')
       else navigate('/dashboard')
