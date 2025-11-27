@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { getChallenges } from '../../services/challenges'
@@ -9,26 +9,54 @@ import type { Difficulty } from '../../types/api'
 
 export default function ChallengesList() {
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | 'ALL'>('ALL')
   const [sortBy, setSortBy] = useState<'newest' | 'popular' | 'easiest'>('newest')
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300) // 300ms debounce
+
+    return () => clearTimeout(timer)
+  }, [search])
+
   const { data: challenges = [], isLoading } = useQuery({
-    queryKey: ['challenges', difficultyFilter, search],
+    queryKey: ['challenges', difficultyFilter, debouncedSearch],
     queryFn: () => getChallenges({
       difficulty: difficultyFilter !== 'ALL' ? difficultyFilter : undefined,
-      search: search || undefined,
+      search: debouncedSearch.trim() || undefined,
       limit: 100,
     }),
+    staleTime: 60000, // Cache for 60 seconds
+    retry: (failureCount, error: any) => {
+      // Don't retry on 429 errors
+      if (error?.response?.status === 429) {
+        return false
+      }
+      return failureCount < 1 // Only 1 retry for other errors
+    },
+    retryDelay: 2000, // 2 second delay before retry
   })
 
-  const filteredChallenges = [...challenges].sort((a, b) => {
+  // Sort challenges client-side
+  const sortedChallenges = useMemo(() => {
+    const sorted = [...challenges]
+    
     if (sortBy === 'easiest') {
       const order = { EASY: 1, MEDIUM: 2, HARD: 3 }
-      return order[a.difficulty] - order[b.difficulty]
+      return sorted.sort((a, b) => {
+        const aOrder = order[a.difficulty] || 999
+        const bOrder = order[b.difficulty] || 999
+        return aOrder - bOrder
+      })
     }
-    // For newest and popular, keep original order (would need createdAt or popularity data)
-    return 0
-  })
+    
+    // For newest and popular, keep original order
+    // TODO: Add createdAt or popularity field to sort properly
+    return sorted
+  }, [challenges, sortBy])
 
   return (
     <div className={styles.challengesPage}>
@@ -81,15 +109,27 @@ export default function ChallengesList() {
           <LoadingSpinner size="lg" />
           <p>Loading challenges...</p>
         </div>
-      ) : filteredChallenges.length === 0 ? (
+      ) : sortedChallenges.length === 0 ? (
         <div className={styles.emptyState}>
           <span>📝</span>
           <h3>No challenges found</h3>
           <p>Try adjusting your filters</p>
+          {(difficultyFilter !== 'ALL' || debouncedSearch) && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setDifficultyFilter('ALL')
+                setSearch('')
+              }}
+              style={{ marginTop: '16px' }}
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       ) : (
         <div className={styles.challengesGrid}>
-          {filteredChallenges.map((challenge) => (
+          {sortedChallenges.map((challenge) => (
             <Link
               key={challenge.id}
               to={`/challenges/${challenge.id}`}

@@ -6,7 +6,25 @@ import App from './App'
 import { useAuthStore } from './stores/auth-store'
 import './styles/global.css'
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error: any) => {
+        // Don't retry on 429 errors to avoid rate limiting
+        if (error?.response?.status === 429) {
+          return false
+        }
+        // Retry other errors up to 2 times
+        return failureCount < 2
+      },
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      staleTime: 60000, // Consider data fresh for 60 seconds
+      gcTime: 300000, // Keep unused data in cache for 5 minutes (formerly cacheTime)
+      refetchOnWindowFocus: false, // Don't refetch on window focus to reduce requests
+      refetchOnReconnect: false, // Don't refetch on reconnect
+    },
+  },
+})
 
 function AppWithAuth() {
   const loadUser = useAuthStore((state) => state.loadUser)

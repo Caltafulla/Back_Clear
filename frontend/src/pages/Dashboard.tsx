@@ -13,7 +13,9 @@ export default function DashboardPage() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: getDashboardStats,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    staleTime: 60000, // Data is fresh for 60 seconds
+    refetchInterval: false, // Disable auto-refetch to reduce rate limiting
+    retry: false, // Don't retry on errors to avoid rate limiting
   })
 
   const getStatusIcon = (status: Submission['status']) => {

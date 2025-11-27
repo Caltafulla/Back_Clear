@@ -1,4 +1,5 @@
 import api from './api'
+import { requestQueue } from '../utils/requestQueue'
 import type { Challenge, Submission } from '../types/api'
 
 export interface DashboardStats {
@@ -19,14 +20,20 @@ export interface DashboardStats {
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   try {
-    const [submissionsRes, challengesRes, mySubmissionsRes] = await Promise.all([
-      api.get('/submissions/my?limit=10'),
-      api.get('/challenges?limit=100'),
-      api.get('/submissions/my?limit=5'),
-    ])
-
-    const submissions = mySubmissionsRes.data?.data?.submissions || []
-    const challenges = challengesRes.data?.data?.challenges || []
+    // Use request queue to prevent too many simultaneous requests
+    const submissionsRes = await requestQueue.add(() => 
+      api.get('/submissions/my?limit=10')
+    )
+    
+    const challengesRes = await requestQueue.add(() => 
+      api.get('/challenges?status=published&limit=100')
+    )
+    
+    // Use the same submissions data for both recent and stats
+    const submissions = submissionsRes.data?.data?.submissions || []
+    const challenges = Array.isArray(challengesRes.data?.data) 
+      ? challengesRes.data.data 
+      : challengesRes.data?.data?.challenges || []
     
     const accepted = submissions.filter((s: Submission) => s.status === 'ACCEPTED').length
     const today = new Date()
@@ -63,7 +70,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 export async function getSubmissionStats() {
   try {
-    const res = await api.get('/submissions/stats')
+    const res = await requestQueue.add(() => 
+      api.get('/submissions/stats')
+    )
     return res.data?.data || {}
   } catch (error) {
     console.error('Failed to fetch submission stats:', error)
