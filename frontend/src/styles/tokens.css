@@ -1,23 +1,42 @@
 :root {
   /* Primary Colors */
   --primary-50: #eff6ff;
+  --primary-100: #dbeafe;
+  --primary-200: #bfdbfe;
+  --primary-300: #93c5fd;
+  --primary-400: #60a5fa;
   --primary-500: #3b82f6;
   --primary-600: #2563eb;
   --primary-700: #1d4ed8;
+  --primary-800: #1e40af;
+  --primary-900: #1e3a8a;
 
   /* Semantic Colors */
   --success: #10b981;
+  --success-light: #d1fae5;
   --warning: #f59e0b;
+  --warning-light: #fef3c7;
   --error: #ef4444;
+  --error-light: #fee2e2;
   --info: #8b5cf6;
+  --info-light: #e9d5ff;
 
   /* Neutral */
   --gray-50: #f8fafc;
   --gray-100: #f1f5f9;
-  --gray-200: #e6eef8;
+  --gray-200: #e2e8f0;
   --gray-300: #cbd5e1;
+  --gray-400: #94a3b8;
+  --gray-500: #64748b;
+  --gray-600: #475569;
+  --gray-700: #334155;
   --gray-800: #1e293b;
   --gray-900: #0f172a;
+
+  /* Difficulty Colors */
+  --difficulty-easy: #10b981;
+  --difficulty-medium: #f59e0b;
+  --difficulty-hard: #ef4444;
 
   /* Typography */
   --text-xs: 0.75rem;
@@ -26,9 +45,32 @@
   --text-lg: 1.125rem;
   --text-xl: 1.25rem;
   --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 
   /* Layout */
   --max-width: 1400px;
   --radius: 8px;
-  --card-shadow: 0 6px 18px rgba(16,24,40,0.06);
+  --radius-sm: 4px;
+  --radius-lg: 12px;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --header-height: 64px;
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 72px;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
 }

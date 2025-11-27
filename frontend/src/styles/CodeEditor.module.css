@@ -1,1 +1,116 @@
-.editor { border:1px solid #e5e7eb; border-radius:6px; overflow:hidden }
+.editorContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1e1e1e;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--gray-300);
+}
+
+.editorHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: #252526;
+  border-bottom: 1px solid #3e3e42;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.languageSelect {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: #3c3c3c;
+  border: 1px solid #3e3e42;
+  border-radius: var(--radius-sm);
+  color: white;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.languageSelect:hover {
+  background: #4a4a4a;
+}
+
+.languageSelect:focus {
+  outline: none;
+  border-color: var(--primary-500);
+}
+
+.headerRight {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.actionButton {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: var(--text-sm);
+}
+
+.editorWrapper {
+  flex: 1;
+  min-height: 400px;
+  position: relative;
+  height: 100%;
+}
+
+.consoleSection {
+  border-top: 1px solid #3e3e42;
+  background: #1e1e1e;
+}
+
+.consoleToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: #252526;
+  border: none;
+  color: var(--gray-300);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: background var(--transition-base);
+  text-align: left;
+}
+
+.consoleToggle:hover {
+  background: #2d2d30;
+}
+
+.console {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+  background: #1e1e1e;
+}
+
+.consoleLoading {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--primary-400);
+  font-size: var(--text-sm);
+}
+
+.consoleOutput {
+  margin: 0;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: var(--text-sm);
+  color: #d4d4d4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+.consoleOutput::before {
+  content: '> ';
+  color: var(--primary-400);
+}

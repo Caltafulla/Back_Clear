@@ -1,0 +1,173 @@
+.submissionStatus {
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+  padding: var(--spacing-lg);
+  margin-top: var(--spacing-md);
+}
+
+.statusHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.statusInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.statusIcon {
+  font-size: var(--text-2xl);
+}
+
+.statusDetails {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.statusTime {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.metrics {
+  display: flex;
+  gap: var(--spacing-lg);
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metricLabel {
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metricValue {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--gray-900);
+  font-family: 'Monaco', monospace;
+}
+
+.resultsSection {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--gray-200);
+}
+
+.expandButton {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: transparent;
+  border: none;
+  padding: var(--spacing-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--gray-700);
+  transition: color var(--transition-base);
+}
+
+.expandButton:hover {
+  color: var(--gray-900);
+}
+
+.testCases {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.testCase {
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: var(--spacing-md);
+  background: var(--gray-50);
+}
+
+.testCasePassed {
+  border-color: var(--success);
+  background: #f0fdf4;
+}
+
+.testCaseFailed {
+  border-color: var(--error);
+  background: #fef2f2;
+}
+
+.testCaseHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.testCaseIcon {
+  font-size: var(--text-lg);
+}
+
+.testCaseTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--gray-900);
+  flex: 1;
+}
+
+.testCaseTime {
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+  font-family: 'Monaco', monospace;
+}
+
+.testCaseContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.testCaseRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.testCaseLabel {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--gray-700);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.testCaseCode {
+  background: white;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm);
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: var(--text-xs);
+  color: var(--gray-900);
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.testCaseError {
+  border-color: var(--error);
+  background: #fee2e2;
+}
+

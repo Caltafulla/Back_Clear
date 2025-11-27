@@ -3,8 +3,13 @@ export type Role = 'STUDENT' | 'PROFESSOR' | 'ADMIN'
 export interface User {
   id: string
   email: string
-  name: string
+  name?: string // Computed from firstName + lastName
+  firstName?: string
+  lastName?: string
   role: Role
+  isActive?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD'

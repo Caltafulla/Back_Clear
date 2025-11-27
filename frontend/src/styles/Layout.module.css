@@ -1,3 +1,28 @@
-.shell { display:flex; flex-direction:column; min-height:100vh }
-.body { display:flex; gap:20px; align-items:flex-start }
-.main { flex:1; padding:24px; max-width: var(--max-width); margin: 0 auto }
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--gray-50);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1;
+  padding: var(--spacing-lg);
+  max-width: var(--max-width);
+  margin: 0 auto;
+  width: 100%;
+  overflow-y: auto;
+  transition: margin-left var(--transition-base);
+}
+
+.mainFullWidth {
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+}

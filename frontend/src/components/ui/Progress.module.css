@@ -1,0 +1,86 @@
+/* Circular Progress */
+.circularContainer {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.circularContainer.sm {
+  width: 60px;
+  height: 60px;
+}
+
+.circularContainer.md {
+  width: 80px;
+  height: 80px;
+}
+
+.circularContainer.lg {
+  width: 120px;
+  height: 120px;
+}
+
+.circularSvg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.circularTrack {
+  stroke: var(--gray-200);
+}
+
+.circularProgress {
+  stroke: var(--primary-600);
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.circularLabel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.percentage {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--gray-900);
+}
+
+.label {
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+  margin-top: 2px;
+}
+
+/* Linear Progress */
+.linearContainer {
+  width: 100%;
+}
+
+.linearHeader {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--text-sm);
+  color: var(--gray-700);
+}
+
+.linearTrack {
+  width: 100%;
+  height: 8px;
+  background: var(--gray-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.linearProgress {
+  height: 100%;
+  background: var(--primary-600);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
