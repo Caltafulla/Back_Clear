@@ -1,9 +1,9 @@
 import { ISubmissionRepository } from '../../../domain/repositories/ISubmissionRepository';
 import { JobQueueService } from '../../../frameworks/JobQueueService';
-import { ProgrammingLanguage } from '../../../domain/entities/Submission';
+import { ProgrammingLanguage, Submission } from '../../../domain/entities/Submission';
 
 export interface SubmitSolutionInput {
-  userId: string;
+  userId: string;            // viene del JWT (req.user.id)
   challengeId: string;
   courseId: string;
   language: ProgrammingLanguage;
@@ -17,9 +17,10 @@ export class SubmitSolutionUseCase {
     private readonly jobQueueService: JobQueueService,
   ) {}
 
-  async execute(input: SubmitSolutionInput) {
+  async execute(input: SubmitSolutionInput): Promise<Submission> {
+    // 1) Crear la submission en Mongo
     const submission = await this.submissionRepository.create({
-      userId: input.userId,        // ✔ permitido si tu repo usa CreateSubmissionWithUserRequest
+      userId: input.userId,
       challengeId: input.challengeId,
       courseId: input.courseId,
       language: input.language,
@@ -27,6 +28,7 @@ export class SubmitSolutionUseCase {
       evaluationId: input.evaluationId,
     });
 
+    // 2) Encolar el trabajo para el runner
     await this.jobQueueService.enqueueSubmission({
       submissionId: submission.id,
       userId: input.userId,

@@ -40,10 +40,8 @@ export function createChallengeRoutes(
    *             properties:
    *               title:
    *                 type: string
-   *                 example: "Two Sum"
    *               description:
    *                 type: string
-   *                 example: "Find two numbers that add up to target"
    *               difficulty:
    *                 type: string
    *                 enum: [Easy, Medium, Hard]
@@ -51,19 +49,48 @@ export function createChallengeRoutes(
    *                 type: array
    *                 items:
    *                   type: string
-   *                 example: ["arrays", "hashmap"]
    *               timeLimit:
    *                 type: number
-   *                 example: 1000
    *               memoryLimit:
    *                 type: number
-   *                 example: 256
    *               courseId:
    *                 type: string
    *               testCases:
    *                 type: array
    *                 items:
    *                   type: object
+   *                   properties:
+   *                     input:
+   *                       type: string
+   *                     expectedOutput:
+   *                       type: string
+   *                     isHidden:
+   *                       type: boolean
+   *                     order:
+   *                       type: number
+   *           example:
+   *             title: "Basic sum"
+   *             description: "Implement a function that receives two integers and returns their sum."
+   *             difficulty: "Easy"
+   *             tags:
+   *               - "math"
+   *               - "beginner"
+   *             timeLimit: 2000
+   *             memoryLimit: 256
+   *             courseId: "course-17644282134450"
+   *             testCases:
+   *               - input: "2 3"
+   *                 expectedOutput: "5"
+   *                 isHidden: false
+   *                 order: 1
+   *               - input: "-1 5"
+   *                 expectedOutput: "4"
+   *                 isHidden: false
+   *                 order: 2
+   *               - input: "-5 12"
+   *                 expectedOutput: "7"
+   *                 isHidden: true
+   *                 order: 3
    *     responses:
    *       201:
    *         description: Challenge created successfully
@@ -233,4 +260,3 @@ export function createChallengeRoutes(
 
   return router;
 }
-

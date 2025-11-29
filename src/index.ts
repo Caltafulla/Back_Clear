@@ -84,7 +84,14 @@ app.use(morgan('combined', {
 
 // 🧩 Instanciar dependencias
 const authService = new AuthService();
-const jobQueueService = new JobQueueService();
+
+// 👇 AQUI: instanciamos JobQueueService con los parámetros correctos
+const jobQueueService = new JobQueueService(
+  process.env.SUBMISSION_QUEUE_NAME || 'submission-processing',
+  process.env.REDIS_URL || 'redis://redis:6379',
+  new Logger('JobQueueService'),
+);
+
 const runnerService = new RunnerService();
 const aiAssistantService = new AIAssistantService();
 
@@ -99,7 +106,13 @@ const leaderboardRepo = new ComputedLeaderboardRepository(submissionRepo, userRe
 const loginUC = new LoginUseCase(userRepo, authService);
 const registerUC = new RegisterUseCase(userRepo, authService);
 const createChallengeUC = new CreateChallengeUseCase(challengeRepo, courseRepo);
-const submitSolutionUC = new SubmitSolutionUseCase(submissionRepo, challengeRepo, courseRepo, evaluationService, jobQueueService);
+
+// 👇 AQUI: SubmitSolutionUseCase solo recibe submissionRepo y jobQueueService
+const submitSolutionUC = new SubmitSolutionUseCase(
+  submissionRepo,
+  jobQueueService,
+);
+
 const createCourseUC = new CreateCourseUseCase(courseRepo);
 const createEvaluationUC = new CreateEvaluationUseCase(evaluationRepo, courseRepo);
 
@@ -152,7 +165,6 @@ app.use('/api/ai', createAIAssistantRoutes(aiAssistantController, authMiddleware
 // 📊 Endpoint de métricas (mock)
 app.get('/api/metrics', async (req, res) => {
   try {
-    // Helpers
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
@@ -187,7 +199,6 @@ app.get('/api/metrics', async (req, res) => {
       for (const s of allRecentSubmissions) {
         counts[s.challengeId] = (counts[s.challengeId] || 0) + 1;
       }
-      // sort by count desc and return top 5 challengeIds
       return Object.entries(counts)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
@@ -360,3 +371,4 @@ mongoose.connect(DATABASE_URL)
   });
 
 export default app;
+ 

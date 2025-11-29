@@ -12,25 +12,35 @@ export class SubmissionController {
   async submitSolution(req: Request, res: Response): Promise<void> {
     try {
       const userId = (req as any).user?.userId;
-      
+
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Authentication required'
+          message: 'Authentication required',
         });
         return;
       }
 
-      const submission = await this.submitSolutionUseCase.execute(req.body, userId);
+      const { challengeId, courseId, language, code, evaluationId } = req.body;
+
+      // Aquí armamos el input que espera el use case
+      const submission = await this.submitSolutionUseCase.execute({
+        userId,
+        challengeId,
+        courseId,
+        language: language as ProgrammingLanguage,
+        code,
+        evaluationId,
+      });
 
       res.status(201).json({
         success: true,
-        data: submission
+        data: submission,
       });
     } catch (error) {
       res.status(400).json({
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to submit solution'
+        message: error instanceof Error ? error.message : 'Failed to submit solution',
       });
     }
   }
@@ -54,19 +64,19 @@ export class SubmissionController {
         submissions = await this.submissionRepository.findByLanguage(language as ProgrammingLanguage);
       } else {
         submissions = await this.submissionRepository.findRecentSubmissions(
-          parseInt(limit as string),
-          parseInt(offset as string)
+          parseInt(limit as string, 10),
+          parseInt(offset as string, 10)
         );
       }
 
       res.status(200).json({
         success: true,
-        data: submissions
+        data: submissions,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to fetch submissions'
+        message: 'Failed to fetch submissions',
       });
     }
   }
@@ -77,7 +87,7 @@ export class SubmissionController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Submission ID is required'
+          message: 'Submission ID is required',
         });
         return;
       }
@@ -86,19 +96,19 @@ export class SubmissionController {
       if (!submission) {
         res.status(404).json({
           success: false,
-          message: 'Submission not found'
+          message: 'Submission not found',
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        data: submission
+        data: submission,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to fetch submission'
+        message: 'Failed to fetch submission',
       });
     }
   }
@@ -111,23 +121,19 @@ export class SubmissionController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Authentication required'
+          message: 'Authentication required',
         });
         return;
       }
 
-      let submissions;
+      let submissions = await this.submissionRepository.findByUserId(userId);
 
       if (challengeId) {
-        submissions = await this.submissionRepository.findByUserId(userId);
-        submissions = submissions.filter(s => s.challengeId === challengeId);
-      } else {
-        submissions = await this.submissionRepository.findByUserId(userId);
+        submissions = submissions.filter((s) => s.challengeId === challengeId);
       }
 
-      // Apply pagination
-      const startIndex = parseInt(offset as string);
-      const endIndex = startIndex + parseInt(limit as string);
+      const startIndex = parseInt(offset as string, 10);
+      const endIndex = startIndex + parseInt(limit as string, 10);
       const paginatedSubmissions = submissions.slice(startIndex, endIndex);
 
       res.status(200).json({
@@ -135,14 +141,14 @@ export class SubmissionController {
         data: paginatedSubmissions,
         pagination: {
           total: submissions.length,
-          limit: parseInt(limit as string),
-          offset: parseInt(offset as string)
-        }
+          limit: parseInt(limit as string, 10),
+          offset: parseInt(offset as string, 10),
+        },
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to fetch user submissions'
+        message: 'Failed to fetch user submissions',
       });
     }
   }
@@ -152,31 +158,30 @@ export class SubmissionController {
       const { userId, challengeId } = req.query;
       const currentUserId = (req as any).user?.userId;
 
-      const targetUserId = userId || currentUserId;
+      const targetUserId = (userId as string) || currentUserId;
 
       if (!targetUserId) {
         res.status(401).json({
           success: false,
-          message: 'Authentication required'
+          message: 'Authentication required',
         });
         return;
       }
 
       const stats = await this.submissionRepository.getSubmissionStats(
-        targetUserId as string,
+        targetUserId,
         challengeId as string
       );
 
       res.status(200).json({
         success: true,
-        data: stats
+        data: stats,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to fetch submission stats'
+        message: 'Failed to fetch submission stats',
       });
     }
   }
 }
-

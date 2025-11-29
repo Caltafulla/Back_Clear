@@ -62,6 +62,7 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     restart: unless-stopped
+    user: "0:0"                       # 👈 correr como root dentro del contenedor
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
@@ -81,6 +82,7 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     restart: unless-stopped
+    user: "0:0"                       # 👈 igual aquí
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
@@ -100,6 +102,7 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     restart: unless-stopped
+    user: "0:0"                       # 👈 y aquí
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
@@ -119,6 +122,7 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     restart: unless-stopped
+    user: "0:0"                       # 👈 y aquí también
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
@@ -157,4 +161,3 @@ volumes:
 networks:
   app-network:
     driver: bridge
-
