@@ -1,109 +1,61 @@
-import Queue from 'bull';
-import { IJobQueueService, JobData } from '../domain/services/IJobQueueService';
-import { SubmissionResult, SubmissionStatus } from '../domain/entities/Submission';
+// src/frameworks/JobQueueService.ts
 
-export class JobQueueService implements IJobQueueService {
-  private submissionQueue: Queue.Queue;
+import Queue from 'bull';
+import { Logger } from './Logger';
+import {
+  SUBMISSION_QUEUE_NAME,
+  PROCESS_SUBMISSION_JOB,
+} from '../config/queues';
+
+export interface ProcessSubmissionJobData {
+  submissionId: string;
+  userId: string;
+  challengeId: string;
+  language: string;
+}
+
+export class JobQueueService {
+  private queue: Queue.Queue;
+  private logger: Logger;
 
   constructor() {
-    this.submissionQueue = new Queue('submission processing', process.env.REDIS_URL || 'redis://localhost:6379');
-    
-    this.setupQueue();
-  }
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
-  private setupQueue(): void {
-    // Process jobs
-    this.submissionQueue.process('process-submission', async (job) => {
-      const jobData = job.data as JobData;
-      return await this.processSubmissionJob(jobData);
-    });
+    this.logger = new Logger('JobQueueService');
+    this.queue = new Queue(SUBMISSION_QUEUE_NAME, redisUrl);
 
-    // Handle completed jobs
-    this.submissionQueue.on('completed', (job, result) => {
-      console.log(`Job ${job.id} completed with result:`, result);
-    });
-
-    // Handle failed jobs
-    this.submissionQueue.on('failed', (job, err) => {
-      console.error(`Job ${job.id} failed:`, err);
+    this.logger.info('JobQueueService initialized', {
+      queueName: SUBMISSION_QUEUE_NAME,
+      redisUrl,
     });
   }
 
-  async addSubmissionJob(jobData: JobData): Promise<void> {
-    await this.submissionQueue.add('process-submission', jobData, {
+  /**
+   * Encola un submission para ser procesado por el worker.
+   */
+  async enqueueSubmission(data: ProcessSubmissionJobData) {
+    this.logger.info('Enqueuing submission job', {
+      submissionId: data.submissionId,
+      userId: data.userId,
+      challengeId: data.challengeId,
+      language: data.language,
+    });
+
+    const job = await this.queue.add(PROCESS_SUBMISSION_JOB, data, {
       attempts: 3,
       backoff: {
         type: 'exponential',
-        delay: 2000
+        delay: 1000,
       },
-      removeOnComplete: 10,
-      removeOnFail: 5
+      removeOnComplete: true,
+      removeOnFail: false,
     });
-  }
 
-  async processSubmissionJob(jobData: JobData): Promise<SubmissionResult> {
-    // This will be implemented by the worker
-    // For now, return a mock result
-    return {
-      submissionId: jobData.submissionId,
-      status: SubmissionStatus.ACCEPTED,
-      score: 100,
-      timeMsTotal: 500,
-      memoryKbTotal: 1024,
-      testCaseResults: []
-    };
-  }
+    this.logger.info('Submission job enqueued', {
+      jobId: job.id,
+      submissionId: data.submissionId,
+    });
 
-  async getJobStatus(jobId: string): Promise<string> {
-    const job = await this.submissionQueue.getJob(jobId);
-    if (!job) {
-      return 'NOT_FOUND';
-    }
-    return await job.getState();
-  }
-
-  async retryFailedJob(jobId: string): Promise<void> {
-    const job = await this.submissionQueue.getJob(jobId);
-    if (job) {
-      await job.retry();
-    }
-  }
-
-  async getQueueStats(): Promise<{
-    waiting: number;
-    active: number;
-    completed: number;
-    failed: number;
-  }> {
-    const waiting = await this.submissionQueue.getWaiting();
-    const active = await this.submissionQueue.getActive();
-    const completed = await this.submissionQueue.getCompleted();
-    const failed = await this.submissionQueue.getFailed();
-
-    return {
-      waiting: waiting.length,
-      active: active.length,
-      completed: completed.length,
-      failed: failed.length
-    };
-  }
-
-  async isConnected(): Promise<boolean> {
-    try {
-      // Access underlying redis client if available
-      const client = (this.submissionQueue as any).client;
-      if (!client) return false;
-      // Some clients have `connected` property
-      if (typeof client.connected !== 'undefined') return !!client.connected;
-      // Try a ping if available
-      if (typeof client.ping === 'function') {
-        await client.ping();
-        return true;
-      }
-      return false;
-    } catch (err) {
-      return false;
-    }
+    return job;
   }
 }
-
