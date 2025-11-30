@@ -136,10 +136,6 @@ export default function ChallengeDetail() {
                 {challenge.difficulty}
               </Badge>
             </div>
-            <div className={styles.headerActions}>
-              <button className={styles.actionButton}>❤️ Like</button>
-              <button className={styles.actionButton}>🔖 Bookmark</button>
-            </div>
           </div>
 
           <div className={styles.tabs}>
