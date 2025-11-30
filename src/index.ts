@@ -22,6 +22,7 @@ import { createCourseRoutes } from './adapters/routes/courseRoutes';
 import { createEvaluationRoutes } from './adapters/routes/evaluationRoutes';
 import { createLeaderboardRoutes } from './adapters/routes/leaderboardRoutes';
 import { createAIAssistantRoutes } from './adapters/routes/aiAssistantRoutes';
+import { createUserRoutes } from './adapters/routes/userRoutes';
 import { ErrorHandler } from './adapters/middleware/errorHandler';
 import { AuthMiddleware } from './adapters/middleware/auth';
 import { AuthService } from './frameworks/AuthService';
@@ -51,6 +52,7 @@ import { CourseController } from './adapters/controllers/CourseController';
 import { EvaluationController } from './adapters/controllers/EvaluationController';
 import { LeaderboardController } from './adapters/controllers/LeaderboardController';
 import { AIAssistantController } from './adapters/controllers/AIAssistantController';
+import { UserController } from './adapters/controllers/UserController';
 
 const app = express();
 const logger = new Logger('Application');
@@ -129,6 +131,7 @@ const leaderboardService = new (require('./frameworks/LeaderboardService').Leade
   evaluationRepo
 );
 const aiAssistantController = new AIAssistantController(aiAssistantService);
+const userController = new UserController(userRepo);
 
 // Subscribe to submission updates so leaderboards update automatically
 submissionEvents.on('submission.updated', async (submission: any) => {
@@ -161,6 +164,7 @@ app.use('/api/courses', createCourseRoutes(courseController, authMiddleware));
 app.use('/api/evaluations', createEvaluationRoutes(evaluationController, authMiddleware));
 app.use('/api/leaderboard', createLeaderboardRoutes(leaderboardController, authMiddleware));
 app.use('/api/ai', createAIAssistantRoutes(aiAssistantController, authMiddleware));
+app.use('/api/users', createUserRoutes(userController, authMiddleware));
 
 // 📊 Endpoint de métricas (mock)
 app.get('/api/metrics', async (req, res) => {

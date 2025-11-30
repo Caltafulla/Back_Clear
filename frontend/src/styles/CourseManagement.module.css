@@ -172,6 +172,17 @@
   display: inline-block;
 }
 
+.viewButton {
+  background: var(--primary-50);
+  color: var(--primary-600);
+  border: 1px solid var(--primary-600);
+}
+
+.viewButton:hover {
+  background: var(--primary-600);
+  color: white;
+}
+
 .editButton {
   background: var(--warning-light);
   color: var(--warning);

@@ -48,3 +48,8 @@ export async function getMyCourses() {
   return Array.isArray(data) ? data : data?.courses || []
 }
 
+export async function getCourseById(id: string) {
+  const res = await api.get(`/courses/${id}`)
+  return res.data?.data || {}
+}
+
