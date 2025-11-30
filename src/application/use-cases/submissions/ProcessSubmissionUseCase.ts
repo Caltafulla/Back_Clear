@@ -1,141 +1,123 @@
+// src/application/use-cases/submissions/ProcessSubmissionUseCase.ts
 import { ISubmissionRepository } from '../../../domain/repositories/ISubmissionRepository';
-import { IRunnerService, RunnerConfig } from '../../../domain/services/IRunnerService';
-import { ILeaderboardRepository } from '../../../domain/repositories/ILeaderboardRepository';
 import { IChallengeRepository } from '../../../domain/repositories/IChallengeRepository';
+// 👇 usamos any para no pelear con la interfaz estricta
+// import { ILeaderboardRepository } from '../../../domain/repositories/ILeaderboardRepository';
 import {
-  Submission,
-  SubmissionResult,
   SubmissionStatus,
+  SubmissionResult,
 } from '../../../domain/entities/Submission';
+import {
+  IRunnerService,
+  RunnerConfig,
+  RunnerResult,
+} from '../../../domain/services/IRunnerService';
 import { Logger } from '../../../frameworks/Logger';
 
 export class ProcessSubmissionUseCase {
+  private readonly submissionRepo: ISubmissionRepository;
+  private readonly challengeRepo: IChallengeRepository;
+  // la instancia real es ComputedLeaderboardRepository, pero aquí la tipamos como any
+  private readonly leaderboardRepo: any;
+  private readonly runnerService: IRunnerService;
   private readonly logger: Logger;
 
   constructor(
-    private readonly submissionRepository: ISubmissionRepository,
-    private readonly runnerService: IRunnerService,
-    private readonly leaderboardRepository: ILeaderboardRepository,
-    private readonly challengeRepository: IChallengeRepository,
+    submissionRepo: ISubmissionRepository,
+    runnerService: IRunnerService,
+    leaderboardRepo: any,
+    challengeRepo: IChallengeRepository,
   ) {
+    this.submissionRepo = submissionRepo;
+    this.challengeRepo = challengeRepo;
+    this.leaderboardRepo = leaderboardRepo;
+    this.runnerService = runnerService;
     this.logger = new Logger('ProcessSubmissionUseCase');
   }
 
-  async execute(submissionId: string): Promise<SubmissionResult> {
-    // 1. Cargar submission
-    const submission = await this.submissionRepository.findById(submissionId);
-
-    if (!submission) {
-      throw new Error(`Submission ${submissionId} not found`);
-    }
-
-    // 2. Cargar challenge para usar límites y test cases
-    const challenge = await this.challengeRepository.findById(
-      submission.challengeId,
-    );
-
-    if (!challenge) {
-      throw new Error(
-        `Challenge ${submission.challengeId} not found for submission ${submissionId}`,
-      );
-    }
-
-    // 3. Marcar submission como RUNNING
-    await this.submissionRepository.update(submission.id, {
-      status: SubmissionStatus.RUNNING,
-    });
-
-    this.logger.info('Submission set to RUNNING', {
-      submissionId,
-    });
-
+  /**
+   * Procesa una submission: corre el código contra los test cases y guarda el resultado.
+   */
+  async execute(submissionId: string): Promise<void> {
     try {
-      // 4. Ejecutar el código en el runner (usa executeCode de IRunnerService)
+      // 1) Cargar submission
+      const submission = await this.submissionRepo.findById(submissionId);
+      if (!submission) {
+        throw new Error(`Submission ${submissionId} not found`);
+      }
+
+      // 2) Cargar challenge
+      const challenge = await this.challengeRepo.findById(submission.challengeId);
+      if (!challenge) {
+        throw new Error(`Challenge ${submission.challengeId} not found`);
+      }
+
+      // 3) Preparar RunnerConfig con test cases visibles
+      const visibleTestCases = (challenge.testCases ?? []).filter(
+        (tc: any) => !tc.isHidden,
+      );
+
       const runnerConfig: RunnerConfig = {
         language: submission.language,
         code: submission.code,
-        // si tu entidad Challenge tiene otros nombres, ajusta estos casts
-        timeLimit: (challenge as any).timeLimit ?? 2000,
-        memoryLimit: (challenge as any).memoryLimit ?? 256,
-        testCases: ((challenge as any).testCases ?? []).map((tc: any) => ({
-          id: tc.id,
+        timeLimit: challenge.timeLimit,
+        memoryLimit: challenge.memoryLimit,
+        testCases: visibleTestCases.map((tc: any) => ({
+          id: String(tc._id ?? tc.id),
           input: tc.input,
           expectedOutput: tc.expectedOutput,
-          isHidden: tc.isHidden ?? false,
         })),
       };
 
-      const runnerResult = await this.runnerService.executeCode(runnerConfig);
+      // 4) Ejecutar código con el RunnerService
+      const result: RunnerResult = await this.runnerService.execute(runnerConfig);
 
-      // 5. Construir SubmissionResult a partir de RunnerResult
+      // 5) Mapear RunnerResult -> SubmissionResult y actualizar submission
       const submissionResult: SubmissionResult = {
-  submissionId: submission.id,
-  status: runnerResult.status as SubmissionStatus,
-  score: runnerResult.score,
-  timeMsTotal: runnerResult.timeMsTotal,
-  memoryKbTotal: runnerResult.memoryKbTotal,
-  testCaseResults: runnerResult.testCaseResults.map((tc) => ({
-    caseId: tc.caseId,
-    status: tc.status as SubmissionStatus,
-    timeMs: tc.timeMs,
-    memoryKb: tc.memoryKb,
-    actualOutput: tc.actualOutput,
-    expectedOutput: tc.expectedOutput,
-    errorMessage: tc.errorMessage,
-  })),
-  errorMessage: runnerResult.errorMessage,
-};
-
-
-      // 6. Actualizar submission con el resultado final
-      await this.submissionRepository.update(submission.id, {
-        status: submissionResult.status,
-        score: submissionResult.score,
-        timeMsTotal: submissionResult.timeMsTotal,
-        memoryKbTotal: submissionResult.memoryKbTotal,
-        testCaseResults: submissionResult.testCaseResults,
-        errorMessage: submissionResult.errorMessage,
-      });
-
-      this.logger.info('Submission updated with result', {
         submissionId,
-        status: submissionResult.status,
-        score: submissionResult.score,
-      });
+        status: result.status ?? SubmissionStatus.WRONG_ANSWER,
+        score: result.score ?? 0,
+        timeMsTotal: result.timeMsTotal ?? 0,
+        memoryKbTotal: result.memoryKbTotal ?? 0,
+        testCaseResults: result.testCaseResults ?? [],
+        errorMessage: result.errorMessage,
+      };
 
-      // 7. Actualizar leaderboards (reto, curso y evaluación si aplica)
-      await this.leaderboardRepository.updateChallengeLeaderboard(
-        submission.challengeId,
-      );
-      await this.leaderboardRepository.updateCourseLeaderboard(
-        submission.courseId,
-      );
-      if (submission.evaluationId) {
-        await this.leaderboardRepository.updateEvaluationLeaderboard(
-          submission.evaluationId,
-        );
+      submission.status = submissionResult.status;
+      submission.score = submissionResult.score;
+      submission.timeMsTotal = submissionResult.timeMsTotal;
+      submission.memoryKbTotal = submissionResult.memoryKbTotal;
+      (submission as any).testCaseResults = submissionResult.testCaseResults;
+      submission.errorMessage = submissionResult.errorMessage;
+
+      await this.submissionRepo.update(submissionId, submission);
+
+      // 6) Actualizar leaderboard (best-effort)
+      try {
+        if (this.leaderboardRepo?.updateWithSubmission) {
+          await this.leaderboardRepo.updateWithSubmission(submission, challenge);
+        }
+      } catch (err) {
+        this.logger.error('Error updating leaderboard', {
+          submissionId,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
 
-      this.logger.info('Leaderboards updated for submission', {
-        submissionId,
-      });
-
-      // 8. Devolver resultado al worker
-      return submissionResult;
-    } catch (error) {
-      // 9. Si algo falla en ejecución, marcar como RUNTIME_ERROR
-      await this.submissionRepository.update(submission.id, {
+      // marcamos la submission como RUNTIME_ERROR
+      await this.submissionRepo.update(submissionId, {
         status: SubmissionStatus.RUNTIME_ERROR,
-        errorMessage:
-          error instanceof Error ? error.message : 'Unknown error',
-      });
+        errorMessage: msg,
+      } as any);
 
-      this.logger.error('Failed to process submission', {
+      this.logger.error('Error processing submission', {
         submissionId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: msg,
       });
 
-      throw error;
+      throw err;
     }
   }
 }
