@@ -24,11 +24,15 @@ RUN npm run build
 FROM node:18-alpine
 WORKDIR /app
 
+# 👇 AQUÍ es donde faltaba g++ (y gcc/make)
 RUN apk add --no-cache \
     python3 \
     py3-pip \
     openjdk11-jre \
-    docker-cli
+    docker-cli \
+    gcc \
+    g++ \
+    make
 
 COPY package*.json ./
 RUN npm ci --only=production

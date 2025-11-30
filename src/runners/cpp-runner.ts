@@ -1,147 +1,166 @@
-import { spawn } from 'child_process';
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
-import { RunnerConfig, RunnerResult } from '../domain/services/IRunnerService';
-import { SubmissionStatus } from '../domain/entities/Submission';
+import { spawn } from "child_process";
+import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
+
+import { RunnerConfig, RunnerResult } from "../domain/services/IRunnerService";
+import { Logger } from "../frameworks/Logger";
+import { SubmissionStatus, TestCaseResult } from "../domain/entities/Submission";
 
 export class CppRunner {
-  async execute(config: RunnerConfig): Promise<RunnerResult> {
-    const testCaseResults: Array<any> = [];
-    let totalTime = 0;
-    let totalMemory = 0;
-    let passed = 0;
+  private logger = new Logger("CppRunner");
 
-    for (const testCase of config.testCases) {
-      const res = await this.runTestCase(config, testCase);
-      testCaseResults.push(res);
-      totalTime += res.timeMs;
-      totalMemory += res.memoryKb;
-      if (res.status === SubmissionStatus.ACCEPTED) passed++;
+  async execute(config: RunnerConfig): Promise<RunnerResult> {
+    this.logger.info(
+      `CppRunner: ejecutando ${config.testCases.length} casos de prueba`
+    );
+
+    const testResults: TestCaseResult[] = [];
+    let overallStatus: SubmissionStatus = SubmissionStatus.ACCEPTED;
+    let totalTime = 0;
+
+    for (const tc of config.testCases) {
+      const result = await this.runSingleTest(
+        config.code,
+        tc.input,
+        tc.expectedOutput,
+        tc.id,
+        config.timeLimit
+      );
+
+      testResults.push(result);
+      totalTime += result.timeMs;
+
+      if (result.status !== SubmissionStatus.ACCEPTED) {
+        overallStatus =
+          result.status === SubmissionStatus.RUNTIME_ERROR
+            ? SubmissionStatus.RUNTIME_ERROR
+            : SubmissionStatus.WRONG_ANSWER;
+      }
     }
 
-    const score = config.testCases.length ? (passed / config.testCases.length) * 100 : 0;
     return {
-      status: score === 100 ? SubmissionStatus.ACCEPTED : SubmissionStatus.WRONG_ANSWER,
-      score,
+      status: overallStatus,
+      score: overallStatus === SubmissionStatus.ACCEPTED ? 100 : 0,
       timeMsTotal: totalTime,
-      memoryKbTotal: totalMemory,
-      testCaseResults
+      memoryKbTotal: 0,
+      testCaseResults: testResults,
+      errorMessage:
+        testResults.find((t) => t.status !== SubmissionStatus.ACCEPTED)
+          ?.errorMessage || "",
     };
   }
 
-  private async runTestCase(config: RunnerConfig, testCase: any): Promise<any> {
-    const timeLimit = Math.max(100, config.timeLimit || 1500);
-    // Enforce at least 512 MB as per platform policy
-    const memoryLimitMb = Math.max(512, config.memoryLimit || 512);
+  private async runSingleTest(
+    code: string,
+    input: string,
+    expectedOutput: string,
+    caseId: string,
+    timeLimitMs: number
+  ): Promise<TestCaseResult> {
+    const tmpDir = os.tmpdir();
 
-    return new Promise((resolve) => {
+    const baseName = `code_${caseId}_${Date.now()}`;
+    const codePath = path.join(tmpDir, `${baseName}.cpp`);
+    const exePath = path.join(tmpDir, `${baseName}.out`);
+
+    // 1) Guardar código fuente
+    await fs.writeFile(codePath, code, "utf8");
+
+    // 2) Compilar
+    const compiledOk = await new Promise<boolean>((resolve) => {
+      const compiler = spawn("g++", [codePath, "-O2", "-std=c++17", "-o", exePath]);
+
+      compiler.on("close", (exitCode) => {
+        resolve(exitCode === 0);
+      });
+    });
+
+    if (!compiledOk) {
+      this.logger.error(`C++ compilation failed for case ${caseId}`);
+      return {
+        caseId,
+        status: SubmissionStatus.COMPILATION_ERROR,
+        timeMs: 0,
+        memoryKb: 0,
+        actualOutput: "",
+        expectedOutput,
+        errorMessage: "Compilation failed",
+      };
+    }
+
+    // 3) Ejecutar el binario pasando el input con echo | exe
+    return await new Promise<TestCaseResult>((resolve) => {
+      // escapamos comillas simples básicas (nuestros inputs son números y espacios,
+      // pero por si acaso)
+      const safeInput = (input ?? "").replace(/'/g, "'\"'\"'");
+      const command = `echo '${safeInput}' | "${exePath}"`;
+
+      const proc = spawn("sh", ["-c", command], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      proc.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+      });
+
+      proc.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+      });
+
       const start = Date.now();
 
-      // Prepare temp dir and source
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpp-run-'));
-      const srcPath = path.join(tmpDir, 'code.cpp');
-
-      const wrapped = [
-        '#include <bits/stdc++.h>',
-        'using namespace std;',
-        '// --- user code ---',
-        config.code,
-        '// --- runner wrapper ---',
-        'string solve(string input);',
-        'int main(){',
-        '  ios::sync_with_stdio(false); cin.tie(nullptr);',
-        '  string input((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());',
-        '  try {',
-        '    string out = solve(input);',
-        '    cout << out;',
-        '  } catch(const exception& e){',
-        '    cerr << "__EXC__:" << e.what();',
-        '    return 1;',
-        '  }',
-        '  return 0;',
-        '}'
-      ].join('\n');
-
-      try {
-        fs.writeFileSync(srcPath, wrapped, 'utf8');
-
-        const containerName = `cpp-run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const args = [
-          'run', '--rm', '--name', containerName,
-          '--network', 'none',
-          '--cpus', '0.5',
-          '--memory', `${memoryLimitMb}m`,
-          '--memory-swap', `${memoryLimitMb}m`,
-          '--pids-limit', '10',
-          '--read-only',
-          '--tmpfs', '/tmp:rw,size=100m,noexec',
-          '--tmpfs', '/run:rw,size=50m,noexec',
-          '--cap-drop', 'ALL',
-          '--security-opt', 'no-new-privileges',
-          '--volume', `${srcPath}:/work/code.cpp:ro`,
-          'gcc:13',
-          'sh', '-lc',
-          `cp /work/code.cpp /tmp/code.cpp && g++ -std=c++17 -O2 -pipe -static -s -o /tmp/a.out /tmp/code.cpp 2>/tmp/err && timeout ${Math.ceil(timeLimit/1000)}s /tmp/a.out`
-        ];
-
-        const docker = spawn('docker', args, { stdio: ['pipe', 'pipe', 'pipe'] });
-        let out = ''; let err = ''; let killed = false;
-
-        docker.stdout?.on('data', d => out += d.toString());
-        docker.stderr?.on('data', d => err += d.toString());
-
-        const killTimer = setTimeout(() => { killed = true; docker.kill('SIGKILL'); }, timeLimit + 500);
-
-        docker.on('close', (code) => {
-          clearTimeout(killTimer);
-          const elapsed = Date.now() - start;
-          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-
-          if (killed) {
-            resolve({ caseId: testCase.id, status: SubmissionStatus.TIME_LIMIT_EXCEEDED, timeMs: timeLimit, memoryKb: 0, errorMessage: 'Time limit exceeded' });
-            return;
-          }
-
-          if (code !== 0) {
-            // Try to read compile errors
-            resolve({
-              caseId: testCase.id,
-              status: err.includes('error:') ? SubmissionStatus.COMPILATION_ERROR : SubmissionStatus.RUNTIME_ERROR,
-              timeMs: elapsed,
-              memoryKb: 0,
-              errorMessage: err || 'Non-zero exit code'
-            });
-          } else {
-            const actual = (out || '').trim();
-            const expected = (testCase.expectedOutput || '').trim();
-            const ok = actual === expected;
-            resolve({
-              caseId: testCase.id,
-              status: ok ? SubmissionStatus.ACCEPTED : SubmissionStatus.WRONG_ANSWER,
-              timeMs: elapsed,
-              memoryKb: 0,
-              actualOutput: actual,
-              expectedOutput: expected
-            });
-          }
+      const timeout = setTimeout(() => {
+        this.logger.warn(`C++ test ${caseId} timed out`);
+        proc.kill("SIGKILL");
+        resolve({
+          caseId,
+          status: SubmissionStatus.TIME_LIMIT_EXCEEDED,
+          timeMs: timeLimitMs,
+          memoryKb: 0,
+          actualOutput: stdout.trim(),
+          expectedOutput,
+          errorMessage: "Time limit exceeded",
         });
+      }, timeLimitMs);
 
-        docker.on('error', (e) => {
-          clearTimeout(killTimer);
-          const elapsed = Date.now() - start;
-          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-          resolve({ caseId: testCase.id, status: SubmissionStatus.RUNTIME_ERROR, timeMs: elapsed, memoryKb: 0, errorMessage: e.message });
+      proc.on("close", (exitCode) => {
+        clearTimeout(timeout);
+        const elapsed = Date.now() - start;
+
+        const actual = stdout.trim();
+        const expected = (expectedOutput ?? "").trim();
+
+        if (exitCode !== 0) {
+          resolve({
+            caseId,
+            status: SubmissionStatus.RUNTIME_ERROR,
+            timeMs: elapsed,
+            memoryKb: 0,
+            actualOutput: actual,
+            expectedOutput: expected,
+            errorMessage: stderr || `Exited with code ${exitCode}`,
+          });
+          return;
+        }
+
+        const isCorrect = actual === expected;
+
+        resolve({
+          caseId,
+          status: isCorrect
+            ? SubmissionStatus.ACCEPTED
+            : SubmissionStatus.WRONG_ANSWER,
+          timeMs: elapsed,
+          memoryKb: 0,
+          actualOutput: actual,
+          expectedOutput: expected,
+          errorMessage: isCorrect ? "" : "Output mismatch",
         });
-
-        // feed stdin
-        docker.stdin?.write(testCase.input ?? '');
-        docker.stdin?.end();
-      } catch (e: any) {
-        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-        resolve({ caseId: testCase.id, status: SubmissionStatus.RUNTIME_ERROR, timeMs: 0, memoryKb: 0, errorMessage: e?.message || 'Unknown error' });
-      }
+      });
     });
   }
 }
-
