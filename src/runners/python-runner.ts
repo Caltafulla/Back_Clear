@@ -1,223 +1,139 @@
-// src/runners/python-runner.ts
 import { spawn } from 'child_process';
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
+
 import { RunnerConfig, RunnerResult } from '../domain/services/IRunnerService';
-import {
-  SubmissionStatus,
-  TestCaseResult,
-} from '../domain/entities/Submission';
+import { Logger } from '../frameworks/Logger';
+import { SubmissionStatus, TestCaseResult } from '../domain/entities/Submission';
 
 export class PythonRunner {
-  async execute(config: RunnerConfig): Promise<RunnerResult> {
-    const testCaseResults: TestCaseResult[] = [];
-    let totalTime = 0;
-    let totalMemory = 0;
-    let passedTests = 0;
+  private logger = new Logger('PythonRunner');
 
-    for (const testCase of config.testCases) {
-      const result = await this.runTestCase(config, testCase);
-      testCaseResults.push(result);
+  async execute(config: RunnerConfig): Promise<RunnerResult> {
+    this.logger.info(
+      `PythonRunner: ejecutando ${config.testCases.length} casos de prueba`
+    );
+
+    const testResults: TestCaseResult[] = [];
+    let overallStatus: SubmissionStatus = SubmissionStatus.ACCEPTED;
+    let totalTime = 0;
+
+    for (const tc of config.testCases) {
+      const result = await this.runSingleTest(
+        config.code,
+        tc.input,
+        tc.expectedOutput,
+        tc.id,
+        config.timeLimit
+      );
+
+      testResults.push(result);
       totalTime += result.timeMs;
-      totalMemory += result.memoryKb;
-      if (result.status === SubmissionStatus.ACCEPTED) {
-        passedTests++;
+
+      if (result.status !== SubmissionStatus.ACCEPTED) {
+        overallStatus =
+          result.status === SubmissionStatus.RUNTIME_ERROR
+            ? SubmissionStatus.RUNTIME_ERROR
+            : SubmissionStatus.WRONG_ANSWER;
       }
     }
 
-    const score =
-      config.testCases.length > 0
-        ? (passedTests / config.testCases.length) * 100
-        : 0;
-    const status =
-      score === 100
-        ? SubmissionStatus.ACCEPTED
-        : SubmissionStatus.WRONG_ANSWER;
+    const firstError = testResults.find(
+      (t) => t.status !== SubmissionStatus.ACCEPTED
+    );
 
     return {
-      status,
-      score,
+      status: overallStatus,
+      score: overallStatus === SubmissionStatus.ACCEPTED ? 100 : 0,
       timeMsTotal: totalTime,
-      memoryKbTotal: totalMemory,
-      testCaseResults,
+      memoryKbTotal: 0,
+      testCaseResults: testResults,
+      errorMessage: firstError?.errorMessage ?? '', // <-- SIEMPRE STRING
     };
   }
 
-  private async runTestCase(
-    config: RunnerConfig,
-    testCase: any,
+  private async runSingleTest(
+    code: string,
+    input: string,
+    expectedOutput: string,
+    caseId: string,
+    timeLimitMs: number
   ): Promise<TestCaseResult> {
-    const timeLimit = Math.max(100, config.timeLimit || 1500);
-    const memoryLimitMb = Math.max(512, config.memoryLimit || 512);
+    const tmpDir = os.tmpdir();
+    const filePath = path.join(tmpDir, `code_${caseId}.py`);
 
-    return new Promise((resolve) => {
-      const startTime = Date.now();
+    await fs.writeFile(filePath, code, 'utf8');
 
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'py-run-'));
-      const srcPath = path.join(tmpDir, 'code.py');
+    return new Promise<TestCaseResult>((resolve) => {
+      const proc = spawn('python3', [filePath], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
 
-      const wrappedCode = [
-        'import sys',
-        '# --- user code ---',
-        config.code,
-        '# --- runner wrapper ---',
-        'if __name__ == "__main__":',
-        '    data = sys.stdin.read()',
-        '    try:',
-        '        out = main(data.strip())',
-        '    except Exception as e:',
-        '        sys.stderr.write(f"__EXC__:{type(e).__name__}:{str(e)}")',
-        '        sys.exit(1)',
-        '    if out is None:',
-        '        out = ""',
-        '    sys.stdout.write(str(out))',
-      ].join('\n');
+      let stdout = '';
+      let stderr = '';
 
-      try {
-        fs.writeFileSync(srcPath, wrappedCode, 'utf8');
+      proc.stdout.on('data', (chunk) => {
+        stdout += chunk.toString();
+      });
 
-        const containerName = `py-run-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 8)}`;
+      proc.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+      });
 
-        const args = [
-          'run',
-          '--rm',
-          '--name',
-          containerName,
-          '--network',
-          'none',
-          '--cpus',
-          '0.5',
-          '--memory',
-          `${memoryLimitMb}m`,
-          '--memory-swap',
-          `${memoryLimitMb}m`,
-          '--pids-limit',
-          '10',
-          '--read-only',
-          '--tmpfs',
-          '/tmp:rw,size=100m,noexec',
-          '--tmpfs',
-          '/run:rw,size=50m,noexec',
-          '--cap-drop',
-          'ALL',
-          '--security-opt',
-          'no-new-privileges',
-          '--volume',
-          `${srcPath}:/code.py:ro`,
-          'python:3.10-alpine',
-          'python',
-          '/code.py',
-        ];
+      proc.stdin.write(input ?? '');
+      proc.stdin.end();
 
-        const docker = spawn('docker', args, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
+      const start = Date.now();
 
-        let output = '';
-        let error = '';
-        let killedByTimeout = false;
-
-        docker.stdout?.on('data', (data) => {
-          output += data.toString();
-        });
-
-        docker.stderr?.on('data', (data) => {
-          error += data.toString();
-        });
-
-        const timeoutHandle = setTimeout(() => {
-          killedByTimeout = true;
-          docker.kill('SIGKILL');
-        }, timeLimit + 500);
-
-        docker.on('close', (code) => {
-          clearTimeout(timeoutHandle);
-          const endTime = Date.now();
-          const executionTime = endTime - startTime;
-
-          try {
-            fs.rmSync(tmpDir, { recursive: true, force: true });
-          } catch {}
-
-          if (killedByTimeout) {
-            resolve({
-              caseId: String(testCase.id),
-              status: SubmissionStatus.TIME_LIMIT_EXCEEDED,
-              timeMs: timeLimit,
-              memoryKb: 0,
-              errorMessage: 'Time limit exceeded',
-              actualOutput: '',
-              expectedOutput: testCase.expectedOutput,
-            });
-            return;
-          }
-
-          if (code !== 0) {
-            resolve({
-              caseId: String(testCase.id),
-              status: SubmissionStatus.RUNTIME_ERROR,
-              timeMs: executionTime,
-              memoryKb: 0,
-              errorMessage:
-                error || 'Non-zero exit code',
-              actualOutput: '',
-              expectedOutput: testCase.expectedOutput,
-            });
-          } else {
-            const actual = (output || '').trim();
-            const expected = (testCase.expectedOutput || '').trim();
-            const ok = actual === expected;
-            resolve({
-              caseId: String(testCase.id),
-              status: ok
-                ? SubmissionStatus.ACCEPTED
-                : SubmissionStatus.WRONG_ANSWER,
-              timeMs: executionTime,
-              memoryKb: 0,
-              actualOutput: actual,
-              expectedOutput: expected,
-            });
-          }
-        });
-
-        docker.on('error', (err) => {
-          clearTimeout(timeoutHandle);
-          const endTime = Date.now();
-          const executionTime = endTime - startTime;
-          try {
-            fs.rmSync(tmpDir, { recursive: true, force: true });
-          } catch {}
-
-          resolve({
-            caseId: String(testCase.id),
-            status: SubmissionStatus.RUNTIME_ERROR,
-            timeMs: executionTime,
-            memoryKb: 0,
-            errorMessage: err.message,
-            actualOutput: '',
-            expectedOutput: testCase.expectedOutput,
-          });
-        });
-
-        docker.stdin?.write(testCase.input ?? '');
-        docker.stdin?.end();
-      } catch (err: any) {
-        try {
-          fs.rmSync(tmpDir, { recursive: true, force: true });
-        } catch {}
+      const timeout = setTimeout(() => {
+        this.logger.warn(`Python test ${caseId} timed out`);
+        proc.kill('SIGKILL');
         resolve({
-          caseId: String(testCase.id),
-          status: SubmissionStatus.RUNTIME_ERROR,
-          timeMs: 0,
+          caseId,
+          status: SubmissionStatus.TIME_LIMIT_EXCEEDED,
+          timeMs: timeLimitMs,
           memoryKb: 0,
-          errorMessage: err?.message || 'Unknown error',
-          actualOutput: '',
-          expectedOutput: testCase.expectedOutput,
+          actualOutput: stdout.trim(),
+          expectedOutput,
+          errorMessage: 'Time limit exceeded',
         });
-      }
+      }, timeLimitMs);
+
+      proc.on('close', (exitCode) => {
+        clearTimeout(timeout);
+
+        const elapsed = Date.now() - start;
+        const actual = stdout.trim();
+        const expected = (expectedOutput ?? '').trim();
+
+        if (exitCode !== 0) {
+          resolve({
+            caseId,
+            status: SubmissionStatus.RUNTIME_ERROR,
+            timeMs: elapsed,
+            memoryKb: 0,
+            actualOutput: actual,
+            expectedOutput: expected,
+            errorMessage: stderr || `Process exited with code ${exitCode}`,
+          });
+          return;
+        }
+
+        const isCorrect = actual === expected;
+
+        resolve({
+          caseId,
+          status: isCorrect
+            ? SubmissionStatus.ACCEPTED
+            : SubmissionStatus.WRONG_ANSWER,
+          timeMs: elapsed,
+          memoryKb: 0,
+          actualOutput: actual,
+          expectedOutput: expected,
+          errorMessage: isCorrect ? '' : 'Output did not match expected', // <-- también string
+        });
+      });
     });
   }
 }
