@@ -108,6 +108,13 @@
   color: var(--gray-700);
   margin: 0;
   line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-wrap: break-word;
+  max-width: 100%;
 }
 
 .emptyState {
