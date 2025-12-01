@@ -10,6 +10,11 @@ export async function getCourses(params?: { limit?: number; offset?: number; per
   return Array.isArray(data) ? data : data?.courses || []
 }
 
+export async function getCourseById(id: string) {
+  const res = await api.get(`/courses/${id}`)
+  return res.data?.data || null
+}
+
 export async function createCourse(payload: {
   name: string
   code: string
