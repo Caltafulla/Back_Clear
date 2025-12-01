@@ -1,134 +1,153 @@
-import { spawn } from 'child_process';
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
-import { RunnerConfig, RunnerResult } from '../domain/services/IRunnerService';
-import { SubmissionStatus } from '../domain/entities/Submission';
+import { spawn } from "child_process";
+import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
+
+import { RunnerConfig, RunnerResult } from "../domain/services/IRunnerService";
+import { Logger } from "../frameworks/Logger";
+import { SubmissionStatus, TestCaseResult } from "../domain/entities/Submission";
 
 export class JavaRunner {
+  private logger = new Logger("JavaRunner");
+
   async execute(config: RunnerConfig): Promise<RunnerResult> {
-    const results: Array<any> = [];
+    this.logger.info(
+      `JavaRunner: ejecutando ${config.testCases.length} casos de prueba`
+    );
+
+    const testResults: TestCaseResult[] = [];
+    let overallStatus: SubmissionStatus = SubmissionStatus.ACCEPTED;
     let totalTime = 0;
-    let totalMem = 0;
-    let passed = 0;
 
     for (const tc of config.testCases) {
-      const r = await this.runTestCase(config, tc);
-      results.push(r);
-      totalTime += r.timeMs;
-      totalMem += r.memoryKb;
-      if (r.status === SubmissionStatus.ACCEPTED) passed++;
+      const result = await this.runSingleTest(
+        config.code,
+        tc.input,
+        tc.expectedOutput,
+        tc.id,
+        config.timeLimit
+      );
+
+      testResults.push(result);
+      totalTime += result.timeMs;
+
+      if (result.status !== SubmissionStatus.ACCEPTED) {
+        // si hay cualquier cosa distinta de ACCEPTED, nos quedamos con ese estado
+        overallStatus = result.status;
+      }
     }
 
-    const score = config.testCases.length ? (passed / config.testCases.length) * 100 : 0;
     return {
-      status: score === 100 ? SubmissionStatus.ACCEPTED : SubmissionStatus.WRONG_ANSWER,
-      score,
+      status: overallStatus,
+      score: overallStatus === SubmissionStatus.ACCEPTED ? 100 : 0,
       timeMsTotal: totalTime,
-      memoryKbTotal: totalMem,
-      testCaseResults: results
+      memoryKbTotal: 0,
+      testCaseResults: testResults,
+      errorMessage: testResults.find(t => t.status !== SubmissionStatus.ACCEPTED)
+        ?.errorMessage,
     };
   }
 
-  private async runTestCase(config: RunnerConfig, testCase: any): Promise<any> {
-    const timeLimit = Math.max(100, config.timeLimit || 1500);
-    // Enforce at least 512 MB as per platform policy
-    const memoryLimitMb = Math.max(512, config.memoryLimit || 512);
+  private async runSingleTest(
+    code: string,
+    input: string,
+    expectedOutput: string,
+    caseId: string,
+    timeLimitMs: number
+  ): Promise<TestCaseResult> {
+    const tmpDir = os.tmpdir();
+    const codePath = path.join(tmpDir, "Main.java");
+    const classPath = tmpDir; // .class va a quedar también en tmp
 
-    return new Promise((resolve) => {
+    // guardar código del usuario
+    await fs.writeFile(codePath, code, "utf8");
+
+    // --- COMPILAR JAVA DIRECTAMENTE CON `javac` ---
+    const compileOk = await new Promise<boolean>((resolve) => {
+      const proc = spawn("javac", ["-classpath", classPath, codePath]);
+
+      proc.on("close", (exitCode) => {
+        resolve(exitCode === 0);
+      });
+    });
+
+    if (!compileOk) {
+      return {
+        caseId,
+        status: SubmissionStatus.COMPILATION_ERROR,
+        timeMs: 0,
+        memoryKb: 0,
+        actualOutput: "",
+        expectedOutput,
+        errorMessage: "Compilation failed",
+      };
+    }
+
+    // --- EJECUTAR JAVA ---
+    return await new Promise<TestCaseResult>((resolve) => {
       const start = Date.now();
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'java-run-'));
-      const srcPath = path.join(tmpDir, 'Runner.java');
 
-      const wrapped = [
-        'import java.util.*;',
-        'public class Runner {',
-        '  // --- user code ---',
-        config.code,
-        '  // Expect a static method: String solve(String input)',
-        '  public static void main(String[] args) throws Exception {',
-        '    Scanner sc = new Scanner(System.in).useDelimiter("\\\\A");',
-        '    String input = sc.hasNext() ? sc.next() : "";',
-        '    try {',
-        '      String out = solve(input);',
-        '      System.out.print(out == null ? "" : out);',
-        '    } catch (Exception e) {',
-        '      System.err.print("__EXC__:" + e.getClass().getSimpleName() + ":" + e.getMessage());',
-        '      System.exit(1);',
-        '    }',
-        '  }',
-        '}'
-      ].join('\n');
+      const proc = spawn("java", ["-classpath", classPath, "Main"], {
+        stdio: ["pipe", "pipe", "pipe"],
+      });
 
-      try {
-        fs.writeFileSync(srcPath, wrapped, 'utf8');
+      let stdout = "";
+      let stderr = "";
 
-        const containerName = `java-run-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-        const args = [
-          'run', '--rm', '--name', containerName,
-          '--network', 'none',
-          '--cpus', '0.5',
-          '--memory', `${memoryLimitMb}m`,
-          '--memory-swap', `${memoryLimitMb}m`,
-          '--pids-limit', '10',
-          '--read-only',
-          '--tmpfs', '/tmp:rw,size=100m,noexec',
-          '--tmpfs', '/run:rw,size=50m,noexec',
-          '--cap-drop', 'ALL',
-          '--security-opt', 'no-new-privileges',
-          '--volume', `${srcPath}:/work/Runner.java:ro`,
-          'openjdk:17-alpine',
-          'sh', '-lc',
-          `cp /work/Runner.java /tmp/Runner.java && cd /tmp && javac Runner.java 2>/tmp/err && timeout ${Math.ceil(timeLimit/1000)}s java Runner`
-        ];
+      proc.stdout.on("data", (chunk) => (stdout += chunk.toString()));
+      proc.stderr.on("data", (chunk) => (stderr += chunk.toString()));
 
-        const proc = spawn('docker', args, { stdio: ['pipe', 'pipe', 'pipe'] });
-        let out = ''; let err = ''; let killed = false;
-        proc.stdout?.on('data', d => out += d.toString());
-        proc.stderr?.on('data', d => err += d.toString());
+      proc.stdin.write(input ?? "");
+      proc.stdin.end();
 
-        const killTimer = setTimeout(() => { killed = true; proc.kill('SIGKILL'); }, timeLimit + 500);
-
-        proc.on('close', (code) => {
-          clearTimeout(killTimer);
-          const elapsed = Date.now() - start;
-          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-
-          if (killed) {
-            resolve({ caseId: testCase.id, status: SubmissionStatus.TIME_LIMIT_EXCEEDED, timeMs: timeLimit, memoryKb: 0, errorMessage: 'Time limit exceeded' });
-            return;
-          }
-          if (code !== 0) {
-            resolve({
-              caseId: testCase.id,
-              status: err.includes('error:') ? SubmissionStatus.COMPILATION_ERROR : SubmissionStatus.RUNTIME_ERROR,
-              timeMs: elapsed,
-              memoryKb: 0,
-              errorMessage: err || 'Non-zero exit code'
-            });
-          } else {
-            const actual = (out || '').trim();
-            const expected = (testCase.expectedOutput || '').trim();
-            const ok = actual === expected;
-            resolve({ caseId: testCase.id, status: ok ? SubmissionStatus.ACCEPTED : SubmissionStatus.WRONG_ANSWER, timeMs: elapsed, memoryKb: 0, actualOutput: actual, expectedOutput: expected });
-          }
+      const timeout = setTimeout(() => {
+        this.logger.warn(`Java test ${caseId} timed out`);
+        proc.kill("SIGKILL");
+        resolve({
+          caseId,
+          status: SubmissionStatus.TIME_LIMIT_EXCEEDED,
+          timeMs: timeLimitMs,
+          memoryKb: 0,
+          actualOutput: stdout.trim(),
+          expectedOutput,
+          errorMessage: "Time limit exceeded",
         });
+      }, timeLimitMs);
 
-        proc.on('error', (e) => {
-          clearTimeout(killTimer);
-          const elapsed = Date.now() - start;
-          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-          resolve({ caseId: testCase.id, status: SubmissionStatus.RUNTIME_ERROR, timeMs: elapsed, memoryKb: 0, errorMessage: e.message });
+      proc.on("close", (exitCode) => {
+        clearTimeout(timeout);
+        const elapsed = Date.now() - start;
+
+        const actual = stdout.trim();
+        const expected = (expectedOutput ?? "").trim();
+
+        if (exitCode !== 0) {
+          resolve({
+            caseId,
+            status: SubmissionStatus.RUNTIME_ERROR,
+            timeMs: elapsed,
+            memoryKb: 0,
+            actualOutput: actual,
+            expectedOutput: expected,
+            errorMessage: stderr || `Process exited with code ${exitCode}`,
+          });
+          return;
+        }
+
+        const isCorrect = actual === expected;
+
+        resolve({
+          caseId,
+          status: isCorrect
+            ? SubmissionStatus.ACCEPTED
+            : SubmissionStatus.WRONG_ANSWER,
+          timeMs: elapsed,
+          memoryKb: 0,
+          actualOutput: actual,
+          expectedOutput: expected,
+          errorMessage: isCorrect ? undefined : "Output mismatch",
         });
-
-        // feed stdin
-        proc.stdin?.write(testCase.input ?? '');
-        proc.stdin?.end();
-      } catch (e: any) {
-        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-        resolve({ caseId: testCase.id, status: SubmissionStatus.RUNTIME_ERROR, timeMs: 0, memoryKb: 0, errorMessage: e?.message || 'Unknown error' });
-      }
+      });
     });
   }
 }
-

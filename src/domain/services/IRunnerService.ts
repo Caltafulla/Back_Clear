@@ -23,8 +23,10 @@ export interface RunnerResult {
   timeMsTotal: number;
   memoryKbTotal: number;
   testCaseResults: TestCaseResult[];
-  errorMessage?: string;
+  // con exactOptionalPropertyTypes, el tipo debe permitir undefined explícitamente
+  errorMessage?: string | undefined;
 }
+
 
 export interface IRunnerService {
   // 👈 ESTE es el método que debe implementar RunnerService
