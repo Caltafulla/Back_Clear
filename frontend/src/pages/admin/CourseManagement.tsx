@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getCourses, createCourse, updateCourse, deleteCourse, enrollStudentByEmail } from '../../services/courses'
+import { getCourses, getCourseById, createCourse, updateCourse, deleteCourse, enrollStudentByEmail } from '../../services/courses'
 import { getUsersByRole } from '../../services/users'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import styles from '../../styles/CourseManagement.module.css'
@@ -9,6 +9,7 @@ export default function CourseManagement() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [editingCourse, setEditingCourse] = useState<any>(null)
+  const [viewingCourse, setViewingCourse] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [periodFilter, setPeriodFilter] = useState<string>('')
   const [enrollEmail, setEnrollEmail] = useState<string>('')
@@ -300,6 +301,20 @@ export default function CourseManagement() {
     setNewStudentEmail('')
   }
 
+  const handleViewDetails = async (course: any) => {
+    try {
+      const fullCourse = await getCourseById(course.id)
+      setViewingCourse(fullCourse || course)
+    } catch (error) {
+      console.error('Error fetching course details:', error)
+      setViewingCourse(course)
+    }
+  }
+
+  const handleCloseViewModal = () => {
+    setViewingCourse(null)
+  }
+
   const handleAddStudentEmail = () => {
     const email = newStudentEmail.trim().toLowerCase()
     if (!email) return
@@ -426,6 +441,13 @@ export default function CourseManagement() {
                   <td>{c.period || '-'}</td>
                   <td>{c.group || '-'}</td>
                   <td className={styles.actionsCell}>
+                    <button
+                      className={`${styles.actionButton} ${styles.editButton}`}
+                      onClick={() => handleViewDetails(c)}
+                      title="View course details"
+                    >
+                      View
+                    </button>
                     <button
                       className={`${styles.actionButton} ${styles.editButton}`}
                       onClick={() => handleEdit(c)}
@@ -709,6 +731,155 @@ export default function CourseManagement() {
                 {createMutation.isPending || updateMutation.isPending
                   ? (editingCourse ? 'Updating...' : 'Creating...')
                   : (editingCourse ? 'Update Course' : 'Create Course')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Course Details View Modal */}
+      {viewingCourse && (
+        <div className={styles.modalOverlay} onClick={handleCloseViewModal}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className={styles.modalHeader}>
+              <h2 className={styles.modalTitle}>Course Summary</h2>
+              <button
+                className={styles.closeButton}
+                onClick={handleCloseViewModal}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              {/* Course Information */}
+              <div style={{ marginBottom: '24px' }}>
+                <h3 style={{ marginBottom: '16px', color: 'var(--gray-800)', fontSize: '18px', fontWeight: 600 }}>Course Information</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--gray-600)', marginBottom: '4px', fontWeight: 500 }}>Name</label>
+                    <div style={{ fontSize: '16px', color: 'var(--gray-900)', fontWeight: 500 }}>{viewingCourse.name || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--gray-600)', marginBottom: '4px', fontWeight: 500 }}>Code</label>
+                    <div style={{ fontSize: '16px', color: 'var(--gray-900)', fontWeight: 500 }}>{viewingCourse.code || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--gray-600)', marginBottom: '4px', fontWeight: 500 }}>Period</label>
+                    <div style={{ fontSize: '16px', color: 'var(--gray-900)' }}>{viewingCourse.period || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--gray-600)', marginBottom: '4px', fontWeight: 500 }}>Group</label>
+                    <div style={{ fontSize: '16px', color: 'var(--gray-900)' }}>{viewingCourse.group || 'N/A'}</div>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--gray-600)', marginBottom: '4px', fontWeight: 500 }}>Description</label>
+                    <div style={{ fontSize: '14px', color: 'var(--gray-700)', lineHeight: '1.6', padding: '12px', backgroundColor: 'var(--gray-50)', borderRadius: '6px' }}>
+                      {viewingCourse.description || 'No description provided'}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--gray-600)', marginBottom: '4px', fontWeight: 500 }}>Status</label>
+                    <div style={{ fontSize: '14px' }}>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: viewingCourse.isActive !== false ? 'var(--green-100)' : 'var(--gray-200)',
+                        color: viewingCourse.isActive !== false ? 'var(--green-700)' : 'var(--gray-700)',
+                        fontWeight: 500
+                      }}>
+                        {viewingCourse.isActive !== false ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Professors */}
+              <div style={{ marginBottom: '24px' }}>
+                <h3 style={{ marginBottom: '16px', color: 'var(--gray-800)', fontSize: '18px', fontWeight: 600 }}>
+                  Professors ({viewingCourse.professors?.length || viewingCourse.professorIds?.length || 0})
+                </h3>
+                {viewingCourse.professors && viewingCourse.professors.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {viewingCourse.professors.map((prof: any) => (
+                      <div key={prof.id || prof._id} style={{
+                        padding: '8px 12px',
+                        backgroundColor: 'var(--blue-50)',
+                        border: '1px solid var(--blue-200)',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}>
+                        <strong>{prof.name || `${prof.firstName || ''} ${prof.lastName || ''}`.trim() || prof.email}</strong>
+                        {prof.email && <span style={{ color: 'var(--gray-600)', marginLeft: '8px' }}>{prof.email}</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : viewingCourse.professorIds && viewingCourse.professorIds.length > 0 ? (
+                  <div style={{ color: 'var(--gray-600)', fontStyle: 'italic' }}>
+                    {viewingCourse.professorIds.length} professor(s) assigned (IDs: {viewingCourse.professorIds.join(', ')})
+                  </div>
+                ) : (
+                  <div style={{ color: 'var(--gray-600)', fontStyle: 'italic' }}>No professors assigned</div>
+                )}
+              </div>
+
+              {/* Students */}
+              <div style={{ marginBottom: '24px' }}>
+                <h3 style={{ marginBottom: '16px', color: 'var(--gray-800)', fontSize: '18px', fontWeight: 600 }}>
+                  Enrolled Students ({viewingCourse.students?.length || viewingCourse.studentIds?.length || 0})
+                </h3>
+                {viewingCourse.students && viewingCourse.students.length > 0 ? (
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', 
+                    gap: '8px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    padding: '8px',
+                    backgroundColor: 'var(--gray-50)',
+                    borderRadius: '6px'
+                  }}>
+                    {viewingCourse.students.map((student: any) => (
+                      <div key={student.id || student._id} style={{
+                        padding: '8px 12px',
+                        backgroundColor: 'white',
+                        border: '1px solid var(--gray-200)',
+                        borderRadius: '4px',
+                        fontSize: '14px'
+                      }}>
+                        <strong>{student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email}</strong>
+                        {student.email && <span style={{ color: 'var(--gray-600)', marginLeft: '8px' }}>{student.email}</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : viewingCourse.studentIds && viewingCourse.studentIds.length > 0 ? (
+                  <div style={{ color: 'var(--gray-600)', fontStyle: 'italic' }}>
+                    {viewingCourse.studentIds.length} student(s) enrolled (IDs: {viewingCourse.studentIds.join(', ')})
+                  </div>
+                ) : (
+                  <div style={{ color: 'var(--gray-600)', fontStyle: 'italic' }}>No students enrolled</div>
+                )}
+              </div>
+
+              {/* Metadata */}
+              <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--gray-200)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '12px', color: 'var(--gray-600)' }}>
+                  <div>
+                    <strong>Created:</strong> {viewingCourse.createdAt ? new Date(viewingCourse.createdAt).toLocaleDateString() : 'N/A'}
+                  </div>
+                  <div>
+                    <strong>Last Updated:</strong> {viewingCourse.updatedAt ? new Date(viewingCourse.updatedAt).toLocaleDateString() : 'N/A'}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className={styles.modalFooter}>
+              <button
+                className="btn btn-secondary"
+                onClick={handleCloseViewModal}
+              >
+                Close
               </button>
             </div>
           </div>

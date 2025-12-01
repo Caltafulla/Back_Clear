@@ -178,9 +178,47 @@ export class CourseController {
         return;
       }
 
+      // Populate professors with full user data
+      const professors = [];
+      if (course.professorIds && course.professorIds.length > 0) {
+        for (const professorId of course.professorIds) {
+          const professor = await this.userRepository.findById(professorId);
+          if (professor) {
+            professors.push({
+              id: professor.id,
+              email: professor.email,
+              firstName: professor.firstName,
+              lastName: professor.lastName,
+              name: `${professor.firstName} ${professor.lastName}`.trim() || professor.email
+            });
+          }
+        }
+      }
+
+      // Populate students with full user data
+      const students = [];
+      if (course.studentIds && course.studentIds.length > 0) {
+        for (const studentId of course.studentIds) {
+          const student = await this.userRepository.findById(studentId);
+          if (student) {
+            students.push({
+              id: student.id,
+              email: student.email,
+              firstName: student.firstName,
+              lastName: student.lastName,
+              name: `${student.firstName} ${student.lastName}`.trim() || student.email
+            });
+          }
+        }
+      }
+
       res.status(200).json({
         success: true,
-        data: course
+        data: {
+          ...course,
+          professors,
+          students
+        }
       });
     } catch (error) {
       res.status(500).json({
