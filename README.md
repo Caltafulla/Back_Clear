@@ -62,6 +62,9 @@ docker-compose up --build -d
 # Verificar que los servicios estén funcionando
 docker-compose ps
 curl http://localhost:3000/health
+
+# Poblar la base de datos con datos iniciales (opcional)
+docker-compose exec api npm run seed
 ```
 
 **Si Docker Desktop no está ejecutándose:**
@@ -119,7 +122,30 @@ docker-compose logs -f
 docker-compose up --scale worker-python=3 --scale worker-javascript=2
 ```
 
-### 4. Verificar la instalación
+### 4. Poblar base de datos con datos iniciales (Opcional)
+
+```bash
+# Ejecutar seed dentro del contenedor
+docker-compose exec api npm run seed
+
+# O si estás ejecutando localmente
+npm run seed
+
+# Para resetear y volver a crear todo
+npm run seed:reset
+```
+
+Esto creará:
+- Usuarios de prueba (admin, professor, students)
+- Un curso de ejemplo
+- Challenges de ejemplo (Two Sum, Reverse String, Valid Parentheses)
+
+**Credenciales de prueba:**
+- Admin: `admin@example.com` / `123456`
+- Professor: `professor@example.com` / `123456`
+- Student: `student@example.com` / `123456`
+
+### 5. Verificar la instalación
 
 ```bash
 # Health check

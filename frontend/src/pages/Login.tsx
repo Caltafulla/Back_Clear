@@ -52,7 +52,14 @@ export default function LoginPage() {
       } else if (err?.response?.status === 401) {
         setError('Invalid email or password. Please try again.')
       } else if (err?.response?.status === 400) {
-        setError(err?.response?.data?.message || 'Invalid request. Please check your input.')
+        // Show validation errors if available
+        const errorData = err?.response?.data
+        if (errorData?.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+          const errorMessages = errorData.errors.map((e: any) => `${e.field}: ${e.message}`).join(', ')
+          setError(errorMessages || errorData.message || 'Invalid request. Please check your input.')
+        } else {
+          setError(errorData?.message || 'Invalid request. Please check your input.')
+        }
       } else if (err?.response?.status >= 500) {
         setError('Server error. Please try again later.')
       } else {
