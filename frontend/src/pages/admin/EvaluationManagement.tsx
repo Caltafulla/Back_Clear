@@ -428,7 +428,6 @@ export default function EvaluationManagement() {
           <table className={styles.table}>
             <thead className={styles.tableHeader}>
               <tr>
-                <th>ID</th>
                 <th>Name</th>
                 <th>Course</th>
                 <th>Challenges</th>
@@ -440,7 +439,6 @@ export default function EvaluationManagement() {
             <tbody className={styles.tableBody}>
               {filteredEvaluations.map((e: any) => (
                 <tr key={e.id}>
-                  <td className={styles.idCell}>{e.id || '-'}</td>
                   <td className={styles.nameCell}>{e.name || 'Untitled'}</td>
                   <td>{getCourseName(e.courseId)}</td>
                   <td>{Array.isArray(e.challengeIds) ? e.challengeIds.length : 0}</td>

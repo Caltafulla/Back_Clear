@@ -46,11 +46,17 @@ export default function LoginPage() {
         else navigate('/dashboard')
       }, 100)
     } catch (err: any) {
-      // Handle rate limiting specifically
+      // Handle different error types
       if (err?.response?.status === 429) {
         setError('Too many requests. Please wait a moment and try again.')
+      } else if (err?.response?.status === 401) {
+        setError('Invalid email or password. Please try again.')
+      } else if (err?.response?.status === 400) {
+        setError(err?.response?.data?.message || 'Invalid request. Please check your input.')
+      } else if (err?.response?.status >= 500) {
+        setError('Server error. Please try again later.')
       } else {
-        setError(err?.response?.data?.message || err?.message || String(err))
+        setError(err?.response?.data?.message || err?.message || 'Login failed. Please try again.')
       }
     } finally {
       setLoading(false)

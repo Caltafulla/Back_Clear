@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../stores/auth-store'
 import { getChallenge } from '../../services/challenges'
-import { getMySubmissions, submitSolution } from '../../services/submissions'
+import { getMySubmissions, submitSolution, getSubmissionById } from '../../services/submissions'
 import CodeEditor from '../../components/editor/CodeEditor'
 import SubmissionStatus from '../../components/submission/SubmissionStatus'
 import Badge from '../../components/ui/Badge'
@@ -19,9 +19,12 @@ export default function ChallengeDetail() {
   const user = useAuthStore((s: import('../../stores/auth-store').AuthState) => s.user)
   const [activeTab, setActiveTab] = useState<Tab>('description')
   const [code, setCode] = useState('')
+  const [language, setLanguage] = useState<'python' | 'javascript' | 'cpp' | 'java'>('python')
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [consoleOutput, setConsoleOutput] = useState('')
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Disable submit button for ADMIN and PROFESSOR users
   const isSubmitDisabled = user?.role === 'ADMIN' || user?.role === 'PROFESSOR'
@@ -45,19 +48,92 @@ export default function ChallengeDetail() {
     }
   }, [mySubmissions])
 
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const submitMutation = useMutation({
     mutationFn: submitSolution,
     onMutate: () => {
       setConsoleOutput('Submitting your code...\n')
+      setIsRunning(true)
     },
-    onSuccess: (newSubmission) => {
+    onSuccess: async (newSubmission) => {
       setSubmission(newSubmission)
-      setConsoleOutput((prev) => `${prev}Submission queued successfully!`)
+      setConsoleOutput((prev) => `${prev}Submission queued successfully! Polling for results...\n`)
       queryClient.invalidateQueries({ queryKey: ['my-submissions', id] })
+      
+      // Clear any existing polling
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current)
+      }
+      
+      // Poll for submission results
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const updatedSubmission = await getSubmissionById(newSubmission.id)
+          if (updatedSubmission) {
+            setSubmission(updatedSubmission)
+            setConsoleOutput((prev) => {
+              const statusMsg = `Status: ${updatedSubmission.status}\n`
+              if (prev.includes('Status:')) {
+                // Replace previous status message
+                return prev.replace(/Status: .+\n/, statusMsg)
+              }
+              return prev + statusMsg
+            })
+            
+            // Stop polling if submission is complete
+            if (updatedSubmission.status !== 'QUEUED' && updatedSubmission.status !== 'RUNNING') {
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current)
+                pollIntervalRef.current = null
+              }
+              setIsRunning(false)
+              setConsoleOutput((prev) => {
+                const finalStatus = updatedSubmission.status === 'ACCEPTED' 
+                  ? '✅ Submission accepted!' 
+                  : `❌ Submission ${updatedSubmission.status}`
+                return prev + `\n${finalStatus}\n`
+              })
+              queryClient.invalidateQueries({ queryKey: ['my-submissions', id] })
+            }
+          }
+        } catch (error: any) {
+          console.error('Error polling submission:', error)
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          setIsRunning(false)
+          setConsoleOutput((prev) => prev + '\nError checking submission status\n')
+        }
+      }, 2000) // Poll every 2 seconds
+      
+      // Stop polling after 5 minutes max
+      pollTimeoutRef.current = setTimeout(() => {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+        }
+        setIsRunning(false)
+      }, 300000)
     },
     onError: (error: any) => {
       const message = error?.response?.data?.message || error?.message || 'Failed to submit'
       setConsoleOutput(`Submission failed: ${message}`)
+      setIsRunning(false)
     },
   })
 
@@ -97,11 +173,15 @@ export default function ChallengeDetail() {
       alert('Course information is missing for this challenge.')
       return
     }
+    if (isSubmitDisabled) {
+      alert('Submissions are disabled for ADMIN and PROFESSOR users.')
+      return
+    }
 
     submitMutation.mutate({
       challengeId: challenge.id,
       courseId: challenge.courseId,
-      language: 'python',
+      language,
       code,
     })
   }
@@ -230,6 +310,27 @@ export default function ChallengeDetail() {
         {/* Right Panel - Editor */}
         <div className={styles.rightPanel}>
           <div className={styles.codeEditorWrapper}>
+            <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <label style={{ fontWeight: 500, color: 'var(--gray-700)' }}>Language:</label>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as 'python' | 'javascript' | 'cpp' | 'java')}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--gray-300)',
+                  backgroundColor: 'white',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+                disabled={isRunning || submitMutation.isPending}
+              >
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="cpp">C++</option>
+                <option value="java">Java</option>
+              </select>
+            </div>
             <CodeEditor
               value={code}
               onChange={setCode}
@@ -239,7 +340,7 @@ export default function ChallengeDetail() {
               submitDisabled={isSubmitDisabled}
               consoleOutput={consoleOutput}
               isRunning={isRunning || submitMutation.isPending}
-              language="python"
+              language={language}
             />
           </div>
           {submission && (

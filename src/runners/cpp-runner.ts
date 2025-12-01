@@ -147,7 +147,21 @@ export class CppRunner {
           return;
         }
 
-        const isCorrect = actual === expected;
+        // Normalize JSON strings before comparison
+        const normalizeOutput = (output: string): string => {
+          try {
+            // Try to parse as JSON and re-stringify to normalize
+            const parsed = JSON.parse(output);
+            return JSON.stringify(parsed);
+          } catch {
+            // If not JSON, just trim
+            return output.trim();
+          }
+        };
+
+        const normalizedActual = normalizeOutput(actual);
+        const normalizedExpected = normalizeOutput(expected);
+        const isCorrect = normalizedActual === normalizedExpected;
 
         resolve({
           caseId,

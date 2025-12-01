@@ -13,7 +13,6 @@ import LeaderboardPage from './pages/Leaderboard'
 import RegisterPage from './pages/Register'
 import MySubmissionsPage from './pages/MySubmissions'
 import ActiveEvaluationsPage from './pages/ActiveEvaluations'
-import MyCoursesPage from './pages/MyCourses'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminMetrics from './pages/admin/Metrics'
 import ChallengeManagement from './pages/admin/ChallengeManagement'
@@ -165,16 +164,6 @@ export default function App() {
           <RequireAuth>
             <Layout>
               <ActiveEvaluationsPage />
-            </Layout>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/my-courses"
-        element={
-          <RequireAuth roles={["STUDENT"]}>
-            <Layout>
-              <MyCoursesPage />
             </Layout>
           </RequireAuth>
         }

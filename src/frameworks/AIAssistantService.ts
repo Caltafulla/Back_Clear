@@ -128,7 +128,7 @@ export class AIAssistantService implements IAIAssistantService {
     }
 
     try {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const { GoogleGenerativeAI } = await import('@google/generative-ai' as any);
       const genAI = new GoogleGenerativeAI(this.config.apiKey);
       const model = genAI.getGenerativeModel({ 
         model: 'gemini-1.5-flash', // Free tier model
@@ -217,7 +217,7 @@ export class AIAssistantService implements IAIAssistantService {
     }
 
     try {
-      const { default: OpenAI } = await import('openai');
+      const { default: OpenAI } = await import('openai' as any);
       const openai = new OpenAI({ apiKey: this.config.apiKey });
       
       const completion = await openai.chat.completions.create({

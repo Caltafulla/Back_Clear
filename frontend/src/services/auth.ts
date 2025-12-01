@@ -21,6 +21,12 @@ export async function login(email: string, password: string) {
   const res = await api.post('/auth/login', { email, password })
   // Backend returns { success: true, data: { user, token } }
   const data = res.data?.data
+  if (!data) {
+    throw new Error('Invalid response from server')
+  }
+  if (!data.token) {
+    throw new Error('Token not received from server')
+  }
   if (data?.user) {
     data.user = normalizeUser(data.user)
   }

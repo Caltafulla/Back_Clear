@@ -140,46 +140,6 @@ export class CourseController {
 
   /**
    * @swagger
-   * /api/courses/my:
-   *   get:
-   *     summary: Get current student's enrolled courses
-   *     tags: [Courses]
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: List of enrolled courses
-   *       401:
-   *         description: Unauthorized
-   */
-  async getMyCourses(req: Request, res: Response): Promise<void> {
-    try {
-      const userId = (req as any).user?.userId;
-      
-      if (!userId) {
-        res.status(401).json({
-          success: false,
-          message: 'User not authenticated'
-        });
-        return;
-      }
-
-      const courses = await this.courseRepository.findByStudentId(userId);
-
-      res.status(200).json({
-        success: true,
-        data: courses
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to fetch student courses'
-      });
-    }
-  }
-
-  /**
-   * @swagger
    * /api/courses/{id}:
    *   get:
    *     summary: Get course by ID
@@ -490,10 +450,10 @@ export class CourseController {
    *         description: Validation error
    */
   async enrollStudentByEmail(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const { email } = req.body as { email?: string };
+    const { id } = req.params;
+    const { email } = req.body as { email?: string };
 
+    try {
       if (!id) {
         res.status(400).json({ success: false, message: 'Course ID is required' });
         return;
@@ -503,7 +463,9 @@ export class CourseController {
         return;
       }
 
-      const user = await this.userRepository.findByEmail(email);
+      // Normalize email before searching
+      const normalizedEmail = email.trim().toLowerCase();
+      const user = await this.userRepository.findByEmail(normalizedEmail);
       if (!user) {
         res.status(404).json({ success: false, message: 'Student not found with that email' });
         return;
@@ -517,11 +479,27 @@ export class CourseController {
       }
 
       const enrollment = await this.courseRepository.enrollStudent(id, user.id);
-      res.status(200).json({ success: true, data: enrollment });
+      
+      // Return enrollment with user info for better frontend experience
+      res.status(200).json({ 
+        success: true, 
+        data: {
+          ...enrollment,
+          student: {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            name: `${user.firstName} ${user.lastName}`.trim()
+          }
+        }
+      });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to enroll student by email';
+      console.error('Error enrolling student by email:', { error: errorMessage, courseId: id, email });
       res.status(400).json({
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to enroll student by email'
+        message: errorMessage
       });
     }
   }

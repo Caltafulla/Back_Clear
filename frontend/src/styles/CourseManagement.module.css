@@ -137,13 +137,6 @@
   color: var(--gray-700);
 }
 
-.idCell {
-  font-family: 'Courier New', monospace;
-  font-size: var(--text-sm);
-  color: var(--gray-500);
-  font-weight: var(--font-weight-medium);
-}
-
 .nameCell {
   font-weight: var(--font-weight-semibold);
   color: var(--gray-900);
@@ -170,17 +163,6 @@
   transition: all var(--transition-base);
   text-decoration: none;
   display: inline-block;
-}
-
-.viewButton {
-  background: var(--primary-50);
-  color: var(--primary-600);
-  border: 1px solid var(--primary-600);
-}
-
-.viewButton:hover {
-  background: var(--primary-600);
-  color: white;
 }
 
 .editButton {

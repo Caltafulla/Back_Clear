@@ -42,6 +42,26 @@ export async function submitSolution(payload: SubmitSolutionPayload): Promise<Su
   return normalizeSubmission(res.data?.data)
 }
 
+export async function getSubmissionById(submissionId: string): Promise<Submission | null> {
+  try {
+    const res = await requestQueue.add(() => api.get(`/submissions/${submissionId}`))
+    
+    // Backend returns { success: true, data: submission }
+    const submission = res.data?.data
+    if (!submission) {
+      return null
+    }
+    
+    return normalizeSubmission(submission)
+  } catch (error: any) {
+    console.error('Failed to fetch submission:', error)
+    if (error?.response?.status === 404) {
+      return null
+    }
+    throw error
+  }
+}
+
 export async function getMySubmissions(params: { challengeId?: string; limit?: number; offset?: number }): Promise<Submission[]> {
   const query = new URLSearchParams()
   if (params.challengeId) query.append('challengeId', params.challengeId)

@@ -33,7 +33,11 @@ export class MongoUserRepository implements IUserRepository {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const user = await UserModel.findOne({ email });
+    // Normalize email: trim whitespace and convert to lowercase for case-insensitive search
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await UserModel.findOne({ 
+      email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') }
+    });
     return user ? this.mapToUser(user) : null;
   }
 

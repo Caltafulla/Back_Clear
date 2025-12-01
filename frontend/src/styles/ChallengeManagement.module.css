@@ -137,13 +137,6 @@
   color: var(--gray-700);
 }
 
-.idCell {
-  font-family: 'Courier New', monospace;
-  font-size: var(--text-sm);
-  color: var(--gray-500);
-  font-weight: var(--font-weight-medium);
-}
-
 .titleCell {
   font-weight: var(--font-weight-semibold);
   color: var(--gray-900);

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getCourses, createCourse, updateCourse, deleteCourse, enrollStudentByEmail, getCourseById } from '../../services/courses'
-import { getUsersByRole, getUserByEmail } from '../../services/users'
+import { getCourses, createCourse, updateCourse, deleteCourse, enrollStudentByEmail } from '../../services/courses'
+import { getUsersByRole } from '../../services/users'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import styles from '../../styles/CourseManagement.module.css'
 
@@ -9,14 +9,20 @@ export default function CourseManagement() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [editingCourse, setEditingCourse] = useState<any>(null)
-  const [viewingCourse, setViewingCourse] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [periodFilter, setPeriodFilter] = useState<string>('')
+  const [enrollEmail, setEnrollEmail] = useState<string>('')
 
   const { data: courses = [], isLoading, refetch } = useQuery({
     queryKey: ['admin', 'courses'],
     queryFn: () => getCourses({ limit: 100 }),
     staleTime: 0,
+  })
+
+  const { data: professors = [], isLoading: loadingProfessors } = useQuery({
+    queryKey: ['professors'],
+    queryFn: () => getUsersByRole('PROFESSOR'),
+    staleTime: 60000, // Cache for 1 minute
   })
 
   const [form, setForm] = useState({
@@ -25,25 +31,10 @@ export default function CourseManagement() {
     description: '',
     period: '2025-1',
     group: 1,
-    professorIds: [] as string[],
-    studentEmails: [] as string[],
   })
-  
-  const [studentEmailInput, setStudentEmailInput] = useState('')
-
-  // Fetch professors for the dropdown
-  const { data: professors = [], isLoading: isLoadingProfessors } = useQuery({
-    queryKey: ['professors'],
-    queryFn: () => getUsersByRole('PROFESSOR'),
-    enabled: showCreate || !!editingCourse || !!viewingCourse,
-  })
-
-  // Fetch students for viewing course details
-  const { data: students = [] } = useQuery({
-    queryKey: ['students'],
-    queryFn: () => getUsersByRole('STUDENT'),
-    enabled: !!viewingCourse,
-  })
+  const [selectedProfessors, setSelectedProfessors] = useState<string[]>([])
+  const [studentEmails, setStudentEmails] = useState<string[]>([])
+  const [newStudentEmail, setNewStudentEmail] = useState('')
 
   // Get unique periods for filter
   const uniquePeriods = useMemo(() => {
@@ -93,27 +84,22 @@ export default function CourseManagement() {
         throw new Error('Group is required and must be at least 1')
       }
       
-      const payload: any = {
+      const payload = {
         name: form.name.trim(),
         code: form.code.trim().toUpperCase(),
         description: form.description.trim(),
         period: form.period.trim(),
         group: Number(form.group),
+        professorIds: selectedProfessors.length > 0 ? selectedProfessors : undefined,
       }
-      
-      // Add professorIds if professors are selected
-      if (form.professorIds.length > 0) {
-        payload.professorIds = form.professorIds
-      }
-      
       console.log('Creating course with payload:', JSON.stringify(payload, null, 2))
       const course = await createCourse(payload)
       
-      // Enroll students by email after course creation
-      if (course?.id && form.studentEmails.length > 0) {
-        const enrollmentPromises = form.studentEmails.map(email => 
+      // Enroll students after course creation
+      if (studentEmails.length > 0 && course?.id) {
+        const enrollmentPromises = studentEmails.map(email => 
           enrollStudentByEmail(course.id, email).catch(err => {
-            console.error(`Failed to enroll student ${email}:`, err)
+            console.error(`Failed to enroll ${email}:`, err)
             return null
           })
         )
@@ -179,9 +165,9 @@ export default function CourseManagement() {
         payload.group = Number(form.group)
       }
       
-      // Add professorIds if professors are selected
-      if (form.professorIds.length > 0) {
-        payload.professorIds = form.professorIds
+      // Include professorIds if any are selected
+      if (selectedProfessors.length > 0) {
+        payload.professorIds = selectedProfessors
       }
       
       // Ensure we have at least one field to update
@@ -192,11 +178,11 @@ export default function CourseManagement() {
       console.log('Updating course:', id, JSON.stringify(payload, null, 2))
       const course = await updateCourse(id, payload)
       
-      // Enroll students by email after course update
-      if (form.studentEmails.length > 0) {
-        const enrollmentPromises = form.studentEmails.map(email => 
-          enrollStudentByEmail(id, email).catch(err => {
-            console.error(`Failed to enroll student ${email}:`, err)
+      // Enroll students after course update
+      if (studentEmails.length > 0 && course?.id) {
+        const enrollmentPromises = studentEmails.map(email => 
+          enrollStudentByEmail(course.id, email).catch(err => {
+            console.error(`Failed to enroll ${email}:`, err)
             return null
           })
         )
@@ -219,10 +205,10 @@ export default function CourseManagement() {
         description: '',
         period: '2025-1',
         group: 1,
-        professorIds: [],
-        studentEmails: [],
       })
-      setStudentEmailInput('')
+      setSelectedProfessors([])
+      setStudentEmails([])
+      setNewStudentEmail('')
     },
     onError: (error: any) => {
       console.error('Failed to update course:', error)
@@ -258,22 +244,29 @@ export default function CourseManagement() {
     }
   })
 
+  const enrollMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingCourse?.id) throw new Error('No course selected')
+      const email = enrollEmail.trim()
+      if (!email) throw new Error('Email is required')
+      return await enrollStudentByEmail(editingCourse.id, email)
+    },
+    onSuccess: async () => {
+      setEnrollEmail('')
+      await qc.invalidateQueries({ queryKey: ['admin', 'courses'] })
+      await qc.refetchQueries({ queryKey: ['admin', 'courses'] })
+      await refetch()
+      alert('Student enrolled successfully')
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.message || error?.message || 'Failed to enroll student'
+      alert(msg)
+    }
+  })
 
   const handleDelete = (id: string, name: string) => {
     if (window.confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
       deleteMutation.mutate(id)
-    }
-  }
-
-  const handleView = async (course: any) => {
-    try {
-      // Fetch full course details
-      const courseDetails = await getCourseById(course.id)
-      setViewingCourse(courseDetails)
-    } catch (error) {
-      console.error('Failed to fetch course details:', error)
-      // Fallback to the course data we already have
-      setViewingCourse(course)
     }
   }
 
@@ -284,18 +277,12 @@ export default function CourseManagement() {
       description: course.description || '',
       period: course.period || '2025-1',
       group: course.group || 1,
-      professorIds: course.professorIds || [],
-      studentEmails: [], // We'll load student emails separately if needed
     })
+    setSelectedProfessors(course.professors?.map((p: any) => p.id || p._id) || [])
+    setStudentEmails([])
+    setNewStudentEmail('')
     setEditingCourse(course)
     setShowCreate(true)
-  }
-
-  const handleRemoveProfessor = (professorId: string) => {
-    setForm({
-      ...form,
-      professorIds: form.professorIds.filter(id => id !== professorId)
-    })
   }
 
   const handleCloseModal = () => {
@@ -307,50 +294,37 @@ export default function CourseManagement() {
       description: '',
       period: '2025-1',
       group: 1,
-      professorIds: [],
-      studentEmails: [],
     })
-    setStudentEmailInput('')
+    setSelectedProfessors([])
+    setStudentEmails([])
+    setNewStudentEmail('')
   }
 
-  const handleAddStudentEmail = async () => {
-    const email = studentEmailInput.trim().toLowerCase()
+  const handleAddStudentEmail = () => {
+    const email = newStudentEmail.trim().toLowerCase()
     if (!email) return
-    
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       alert('Please enter a valid email address')
       return
     }
-    
-    // Check if email already exists
-    if (form.studentEmails.includes(email)) {
-      alert('This email is already in the list')
+    if (studentEmails.includes(email)) {
+      alert('This email is already added')
       return
     }
-    
-    // Verify user exists (optional - we can skip this if you prefer)
-    try {
-      const user = await getUserByEmail(email)
-      if (!user) {
-        if (!window.confirm(`User with email ${email} not found. Do you want to add it anyway?`)) {
-          return
-        }
-      }
-    } catch (error) {
-      console.warn('Could not verify user email:', error)
-    }
-    
-    setForm({ ...form, studentEmails: [...form.studentEmails, email] })
-    setStudentEmailInput('')
+    setStudentEmails([...studentEmails, email])
+    setNewStudentEmail('')
   }
 
   const handleRemoveStudentEmail = (email: string) => {
-    setForm({
-      ...form,
-      studentEmails: form.studentEmails.filter(e => e !== email)
-    })
+    setStudentEmails(studentEmails.filter(e => e !== email))
+  }
+
+  const handleToggleProfessor = (professorId: string) => {
+    setSelectedProfessors(prev => 
+      prev.includes(professorId)
+        ? prev.filter(id => id !== professorId)
+        : [...prev, professorId]
+    )
   }
 
   return (
@@ -437,7 +411,6 @@ export default function CourseManagement() {
           <table className={styles.table}>
             <thead className={styles.tableHeader}>
               <tr>
-                <th>ID</th>
                 <th>Name</th>
                 <th>Code</th>
                 <th>Period</th>
@@ -448,18 +421,11 @@ export default function CourseManagement() {
             <tbody className={styles.tableBody}>
               {filteredCourses.map((c: any) => (
                 <tr key={c.id}>
-                  <td className={styles.idCell}>{c.id || '-'}</td>
                   <td className={styles.nameCell}>{c.name || 'Untitled'}</td>
                   <td className={styles.codeCell}>{c.code || '-'}</td>
                   <td>{c.period || '-'}</td>
                   <td>{c.group || '-'}</td>
                   <td className={styles.actionsCell}>
-                    <button
-                      className={`${styles.actionButton} ${styles.viewButton}`}
-                      onClick={() => handleView(c)}
-                    >
-                      View
-                    </button>
                     <button
                       className={`${styles.actionButton} ${styles.editButton}`}
                       onClick={() => handleEdit(c)}
@@ -555,143 +521,70 @@ export default function CourseManagement() {
                 </div>
               </div>
 
+              {/* Professors Section */}
               <div className={styles.formRow}>
                 <div className={styles.formGroup}>
                   <label className={styles.label}>Professors</label>
-                  {isLoadingProfessors ? (
-                    <LoadingSpinner size="sm" />
+                  {loadingProfessors ? (
+                    <div style={{ padding: '12px', textAlign: 'center' }}>
+                      <LoadingSpinner size="sm" />
+                    </div>
+                  ) : professors.length === 0 ? (
+                    <div style={{ padding: '12px', color: 'var(--gray-600)', fontStyle: 'italic' }}>
+                      No professors available
+                    </div>
                   ) : (
                     <div style={{ 
-                      maxHeight: '200px', 
-                      overflowY: 'auto', 
-                      border: '1px solid var(--border)', 
-                      borderRadius: '4px',
-                      padding: '8px',
-                      backgroundColor: 'var(--bg-primary)'
+                      border: '1px solid var(--gray-300)', 
+                      borderRadius: '6px', 
+                      padding: '12px',
+                      maxHeight: '200px',
+                      overflowY: 'auto'
                     }}>
-                      {professors.length === 0 ? (
-                        <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
-                          No professors available
-                        </div>
-                      ) : (
-                        professors.map((professor: any) => {
-                          const professorName = professor.name || `${professor.firstName || ''} ${professor.lastName || ''}`.trim() || professor.email
-                          const isSelected = form.professorIds.includes(professor.id)
-                          return (
-                            <label
-                              key={professor.id}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '8px',
-                                cursor: 'pointer',
-                                borderRadius: '4px',
-                                backgroundColor: isSelected ? 'var(--bg-secondary)' : 'transparent',
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!isSelected) {
-                                  e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!isSelected) {
-                                  e.currentTarget.style.backgroundColor = 'transparent'
-                                }
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setForm({
-                                      ...form,
-                                      professorIds: [...form.professorIds, professor.id]
-                                    })
-                                  } else {
-                                    setForm({
-                                      ...form,
-                                      professorIds: form.professorIds.filter(id => id !== professor.id)
-                                    })
-                                  }
-                                }}
-                                style={{ cursor: 'pointer' }}
-                              />
-                              <span style={{ fontSize: '14px', flex: 1 }}>
-                                {professorName}
-                              </span>
-                            </label>
-                          )
-                        })
-                      )}
+                      {professors.map((professor) => (
+                        <label
+                          key={professor.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px',
+                            cursor: 'pointer',
+                            borderRadius: '4px',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--gray-50)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedProfessors.includes(professor.id)}
+                            onChange={() => handleToggleProfessor(professor.id)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <span>
+                            {professor.name || professor.email} {professor.email && `(${professor.email})`}
+                          </span>
+                        </label>
+                      ))}
                     </div>
                   )}
-                  {form.professorIds.length > 0 && (
-                    <div style={{ marginTop: '8px' }}>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                        {form.professorIds.length} professor{form.professorIds.length !== 1 ? 's' : ''} selected
-                      </div>
-                      {editingCourse && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {form.professorIds.map((professorId) => {
-                            const professor = professors.find((p: any) => p.id === professorId)
-                            const professorName = professor 
-                              ? (professor.name || `${professor.firstName || ''} ${professor.lastName || ''}`.trim() || professor.email)
-                              : professorId
-                            return (
-                              <div
-                                key={professorId}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  padding: '8px 12px',
-                                  backgroundColor: 'var(--bg-secondary)',
-                                  borderRadius: '4px',
-                                  border: '1px solid var(--border)',
-                                }}
-                              >
-                                <span style={{ fontSize: '14px' }}>{professorName}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveProfessor(professorId)}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    fontSize: '18px',
-                                    padding: '0 4px',
-                                  }}
-                                  aria-label="Remove professor"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className={styles.helpText}>
-                    {editingCourse 
-                      ? 'Select one or more professors to assign to this course. You can remove selected professors by clicking the × button.'
-                      : 'Select one or more professors to assign to this course.'}
+                  <div className={styles.helpText} style={{ marginTop: '8px' }}>
+                    Select one or more professors to assign to this course.
                   </div>
                 </div>
               </div>
 
+              {/* Students Section */}
               <div className={styles.formRow}>
                 <div className={styles.formGroup}>
                   <label className={styles.label}>Students (Email)</label>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                     <input
                       type="email"
                       className={styles.input}
-                      value={studentEmailInput}
-                      onChange={(e) => setStudentEmailInput(e.target.value)}
+                      value={newStudentEmail}
+                      onChange={(e) => setNewStudentEmail(e.target.value)}
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault()
@@ -699,58 +592,95 @@ export default function CourseManagement() {
                         }
                       }}
                       placeholder="Enter student email and press Enter or click Add"
+                      disabled={createMutation.isPending || updateMutation.isPending}
                     />
                     <button
                       type="button"
                       className="btn btn-secondary"
                       onClick={handleAddStudentEmail}
-                      disabled={!studentEmailInput.trim()}
+                      disabled={createMutation.isPending || updateMutation.isPending || !newStudentEmail.trim()}
                     >
                       Add
                     </button>
                   </div>
-                  {form.studentEmails.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {form.studentEmails.map((email, index) => (
-                        <div
-                          key={index}
+                  {studentEmails.length > 0 && (
+                    <div style={{ 
+                      display: 'flex', 
+                      flexWrap: 'wrap', 
+                      gap: '8px',
+                      marginBottom: '8px',
+                      padding: '8px',
+                      border: '1px solid var(--gray-300)',
+                      borderRadius: '6px',
+                      minHeight: '40px'
+                    }}>
+                      {studentEmails.map((email) => (
+                        <span
+                          key={email}
                           style={{
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '8px 12px',
-                            backgroundColor: 'var(--bg-secondary)',
+                            gap: '6px',
+                            padding: '4px 8px',
+                            backgroundColor: 'var(--blue-50)',
+                            border: '1px solid var(--blue-200)',
                             borderRadius: '4px',
-                            border: '1px solid var(--border)',
+                            fontSize: '14px'
                           }}
                         >
-                          <span style={{ fontSize: '14px' }}>{email}</span>
+                          {email}
                           <button
                             type="button"
                             onClick={() => handleRemoveStudentEmail(email)}
                             style={{
                               background: 'none',
                               border: 'none',
-                              color: 'var(--text-secondary)',
                               cursor: 'pointer',
-                              fontSize: '18px',
-                              padding: '0 4px',
+                              padding: 0,
+                              fontSize: '16px',
+                              color: 'var(--gray-600)',
+                              lineHeight: 1
                             }}
-                            aria-label="Remove email"
+                            disabled={createMutation.isPending || updateMutation.isPending}
                           >
                             ×
                           </button>
-                        </div>
+                        </span>
                       ))}
                     </div>
                   )}
                   <div className={styles.helpText}>
-                    {editingCourse
-                      ? 'Add student emails to enroll them in this course. You can remove students by clicking the × button. Students will be enrolled after course update.'
-                      : 'Add student emails to enroll them in this course. Students will be enrolled after course creation/update.'}
+                    Add student emails to enroll them in this course. Students will be enrolled after course creation/update.
                   </div>
                 </div>
               </div>
+
+              {editingCourse && (
+                <div className={styles.formRow}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.label}>Enroll Student (Email)</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        className={styles.input}
+                        value={enrollEmail}
+                        onChange={(e) => setEnrollEmail(e.target.value)}
+                        placeholder="Enter student email"
+                      />
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => enrollMutation.mutate()}
+                        disabled={enrollMutation.isPending || !enrollEmail.trim()}
+                      >
+                        {enrollMutation.isPending ? 'Enrolling...' : 'Enroll'}
+                      </button>
+                    </div>
+                    <div className={styles.helpText}>
+                      Enter the student's email to enroll them in this course.
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className={styles.modalFooter}>
               <button
@@ -779,152 +709,6 @@ export default function CourseManagement() {
                 {createMutation.isPending || updateMutation.isPending
                   ? (editingCourse ? 'Updating...' : 'Creating...')
                   : (editingCourse ? 'Update Course' : 'Create Course')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View Course Details Modal */}
-      {viewingCourse && (
-        <div className={styles.modalOverlay} onClick={() => setViewingCourse(null)}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px' }}>
-            <div className={styles.modalHeader}>
-              <h2 className={styles.modalTitle}>Course Details</h2>
-              <button
-                className={styles.closeButton}
-                onClick={() => setViewingCourse(null)}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-            <div className={styles.modalBody}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Basic Information */}
-                <div>
-                  <h3 style={{ marginBottom: '12px', fontSize: '18px', fontWeight: '600' }}>Basic Information</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div>
-                      <strong>Name:</strong>
-                      <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>{viewingCourse.name || '-'}</div>
-                    </div>
-                    <div>
-                      <strong>Code:</strong>
-                      <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>{viewingCourse.code || '-'}</div>
-                    </div>
-                    <div>
-                      <strong>Period:</strong>
-                      <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>{viewingCourse.period || '-'}</div>
-                    </div>
-                    <div>
-                      <strong>Group:</strong>
-                      <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>{viewingCourse.group || '-'}</div>
-                    </div>
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <strong>Description:</strong>
-                      <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>{viewingCourse.description || '-'}</div>
-                    </div>
-                    <div>
-                      <strong>Status:</strong>
-                      <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>
-                        {viewingCourse.isActive !== false ? 'Active' : 'Inactive'}
-                      </div>
-                    </div>
-                    <div>
-                      <strong>Created:</strong>
-                      <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>
-                        {viewingCourse.createdAt ? new Date(viewingCourse.createdAt).toLocaleString() : '-'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Professors */}
-                <div>
-                  <h3 style={{ marginBottom: '12px', fontSize: '18px', fontWeight: '600' }}>
-                    Professors ({viewingCourse.professorIds?.length || 0})
-                  </h3>
-                  {viewingCourse.professorIds && viewingCourse.professorIds.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {viewingCourse.professorIds.map((professorId: string) => {
-                        const professor = professors.find((p: any) => p.id === professorId)
-                        const professorName = professor 
-                          ? (professor.name || `${professor.firstName || ''} ${professor.lastName || ''}`.trim() || professor.email)
-                          : professorId
-                        return (
-                          <div
-                            key={professorId}
-                            style={{
-                              padding: '12px',
-                              backgroundColor: 'var(--bg-secondary)',
-                              borderRadius: '4px',
-                              border: '1px solid var(--border)',
-                            }}
-                          >
-                            <div style={{ fontSize: '14px' }}>{professorName}</div>
-                            {professor?.email && (
-                              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                                {professor.email}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div style={{ padding: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                      No professors assigned
-                    </div>
-                  )}
-                </div>
-
-                {/* Students */}
-                <div>
-                  <h3 style={{ marginBottom: '12px', fontSize: '18px', fontWeight: '600' }}>
-                    Students ({viewingCourse.studentIds?.length || 0})
-                  </h3>
-                  {viewingCourse.studentIds && viewingCourse.studentIds.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
-                      {viewingCourse.studentIds.map((studentId: string) => {
-                        const student = students.find((s: any) => s.id === studentId)
-                        const studentName = student 
-                          ? (student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email)
-                          : studentId
-                        return (
-                          <div
-                            key={studentId}
-                            style={{
-                              padding: '12px',
-                              backgroundColor: 'var(--bg-secondary)',
-                              borderRadius: '4px',
-                              border: '1px solid var(--border)',
-                            }}
-                          >
-                            <div style={{ fontSize: '14px' }}>{studentName}</div>
-                            {student?.email && (
-                              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                                {student.email}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div style={{ padding: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                      No students enrolled
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className={styles.modalFooter}>
-              <button
-                className="btn btn-secondary"
-                onClick={() => setViewingCourse(null)}
-              >
-                Close
               </button>
             </div>
           </div>

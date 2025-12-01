@@ -274,85 +274,12 @@
   color: var(--gray-900);
 }
 
-/* My Courses Section */
-.myCoursesSection {
-  margin-top: var(--spacing-xl);
-  margin-bottom: var(--spacing-xl);
-}
-
-.coursesGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-lg);
-}
-
-.courseCard {
-  background: white;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--card-shadow);
-  padding: var(--spacing-lg);
-  transition: all var(--transition-base);
-  border: 1px solid var(--gray-200);
-}
-
-.courseCard:hover {
-  box-shadow: var(--card-shadow-hover);
-  transform: translateY(-2px);
-  border-color: var(--primary-300);
-}
-
-.courseHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-md);
-  padding-bottom: var(--spacing-md);
-  border-bottom: 1px solid var(--gray-200);
-}
-
-.courseName {
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--gray-900);
-  margin: 0;
-  flex: 1;
-}
-
-.courseDetails {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.courseDetailItem {
-  display: flex;
-  gap: var(--spacing-sm);
-  align-items: center;
-}
-
-.courseDetailLabel {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--gray-600);
-}
-
-.courseDetailValue {
-  font-size: var(--text-sm);
-  color: var(--gray-900);
-  font-family: 'Courier New', monospace;
-}
-
 @media (max-width: 768px) {
   .statsGrid {
     grid-template-columns: 1fr;
   }
   
   .actionsGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .coursesGrid {
     grid-template-columns: 1fr;
   }
 }
